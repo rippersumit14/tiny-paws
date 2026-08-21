@@ -9,7 +9,7 @@ signal match_started
 signal player_moved(session_id: String, position: Vector3, yaw: float)
 
 const LOCAL_SERVER_URL := "ws://localhost:2567/ws"
-const WEB_SERVER_URL := "wss://tiny-paws.onrender.com/ws"
+const PRODUCTION_SERVER_URL := "wss://tiny-paws.onrender.com/ws"
 
 var socket := WebSocketPeer.new()
 var server_url := _default_server_url()
@@ -87,7 +87,7 @@ func players() -> Array:
 	return state.get("players", [])
 
 func _default_server_url() -> String:
-	return WEB_SERVER_URL if OS.has_feature("web") else LOCAL_SERVER_URL
+	return LOCAL_SERVER_URL if OS.has_feature("editor") else PRODUCTION_SERVER_URL
 
 func _send(message: Dictionary) -> void:
 	if socket.get_ready_state() != WebSocketPeer.STATE_OPEN:

@@ -1,15 +1,16 @@
 extends Node3D
 
+const HOUSE_BUILDER := preload("res://scripts/art/stylized_house_builder.gd")
 const REQUIRED_KEYS := 3
 const INTERACT_DISTANCE := 1.6
 
 const KEY_SPAWNS := [
-	{"id": "kitchen_counter", "label": "Kitchen Counter", "position": Vector3(-6.2, 1.2, -3.2)},
-	{"id": "under_table", "label": "Under Dining Table", "position": Vector3(-2.5, 0.35, -4.3)},
-	{"id": "study_desk", "label": "Study Desk", "position": Vector3(6.4, 1.05, -3.8)},
-	{"id": "garage_crate", "label": "Garage Crate", "position": Vector3(-7.4, 0.65, 4.8)},
-	{"id": "bedroom_corner", "label": "Bedroom Corner", "position": Vector3(3.8, 0.4, 7.3)},
-	{"id": "bathroom_shelf", "label": "Bathroom Shelf", "position": Vector3(6.2, 1.35, 7.6)}
+	{"id": "kitchen_counter", "label": "Kitchen Counter", "position": Vector3(-11.7, 1.18, -3.8)},
+	{"id": "under_table", "label": "Under Dining Table", "position": Vector3(0.0, 0.42, -5.7)},
+	{"id": "study_desk", "label": "Study Desk", "position": Vector3(11.5, 1.12, -4.8)},
+	{"id": "garage_crate", "label": "Garage Crate", "position": Vector3(-12.8, 0.85, 5.2)},
+	{"id": "guest_bedroom", "label": "Guest Bedroom Pillow", "position": Vector3(-10.8, 4.95, -8.5)},
+	{"id": "security_room", "label": "Security Monitor", "position": Vector3(-10.0, 9.25, -9.6)}
 ]
 
 @onready var player: CharacterBody3D = $Player
@@ -31,6 +32,7 @@ var notice_timer := 0.0
 func _ready() -> void:
 	randomize()
 	_build_house()
+	player.global_position = Vector3(0, 0.7, 9.0)
 	_spawn_keys()
 	_create_exit()
 	_create_hud()
@@ -55,30 +57,11 @@ func _process(delta: float) -> void:
 		_try_interact()
 
 func _build_house() -> void:
-	_add_box("Ground Floor", Vector3(22, 0.25, 18), Vector3(0, -0.12, 0), Color(0.28, 0.24, 0.2))
-	_add_box("Upper Floor", Vector3(18, 0.25, 13), Vector3(1.5, 4.0, 2.5), Color(0.24, 0.22, 0.24))
-
-	# Outer walls leave a large front doorway at z = 8.6.
-	_add_box("Back Wall", Vector3(22, 4, 0.35), Vector3(0, 1.9, -9), Color(0.38, 0.34, 0.32))
-	_add_box("Left Wall", Vector3(0.35, 4, 18), Vector3(-11, 1.9, 0), Color(0.38, 0.34, 0.32))
-	_add_box("Right Wall", Vector3(0.35, 4, 18), Vector3(11, 1.9, 0), Color(0.38, 0.34, 0.32))
-	_add_box("Front Wall Left", Vector3(8, 4, 0.35), Vector3(-7, 1.9, 9), Color(0.38, 0.34, 0.32))
-	_add_box("Front Wall Right", Vector3(8, 4, 0.35), Vector3(7, 1.9, 9), Color(0.38, 0.34, 0.32))
-
-	_add_box("Kitchen Divider", Vector3(0.28, 2.6, 7), Vector3(-4.2, 1.25, -4.8), Color(0.32, 0.29, 0.28))
-	_add_box("Study Divider", Vector3(0.28, 2.6, 7), Vector3(4.2, 1.25, -4.8), Color(0.32, 0.29, 0.28))
-	_add_box("Hall Divider", Vector3(12, 2.6, 0.28), Vector3(0, 1.25, 2.2), Color(0.32, 0.29, 0.28))
-
-	_add_furniture("Giant Couch", Vector3(4.4, 1.2, 1.5), Vector3(-4.2, 0.55, 1.2), Color(0.14, 0.34, 0.42))
-	_add_furniture("Dining Table", Vector3(3.2, 0.25, 2.2), Vector3(-2.5, 1.0, -4.3), Color(0.34, 0.2, 0.12))
-	_add_furniture("Kitchen Counter", Vector3(4.4, 1.2, 1.0), Vector3(-7.0, 0.55, -3.2), Color(0.44, 0.42, 0.38))
-	_add_furniture("Study Desk", Vector3(3.3, 1.0, 1.2), Vector3(6.6, 0.5, -3.8), Color(0.28, 0.18, 0.12))
-	_add_furniture("Garage Crates", Vector3(2.2, 1.2, 2.2), Vector3(-7.5, 0.55, 5.0), Color(0.37, 0.24, 0.12))
-	_add_furniture("Huge Bed", Vector3(4.0, 0.85, 3.0), Vector3(2.8, 0.38, 7.0), Color(0.48, 0.2, 0.28))
-	_add_furniture("Bathroom Shelf", Vector3(2.4, 1.6, 0.7), Vector3(6.2, 0.75, 7.8), Color(0.64, 0.66, 0.62))
-	_add_furniture("Uncle Cage", Vector3(2.0, 1.8, 2.0), Vector3(0, 0.85, 6.8), Color(0.12, 0.12, 0.14), false)
-
-	_create_stairs()
+	var builder := HOUSE_BUILDER.new()
+	builder.build(self)
+	_add_box("CaptureCageBase", Vector3(2.6, 0.12, 2.6), Vector3(0, 0.08, 7.4), Color(0.10, 0.11, 0.12), false)
+	for x in [-1.2, -0.6, 0.0, 0.6, 1.2]:
+		_add_box("CaptureCageBar_%s" % x, Vector3(0.08, 1.8, 0.08), Vector3(x, 0.95, 6.15), Color(0.05, 0.06, 0.07), false)
 
 func _add_box(node_name: String, size: Vector3, position: Vector3, color: Color, collision := true) -> StaticBody3D:
 	var body := StaticBody3D.new()
@@ -106,10 +89,7 @@ func _add_furniture(node_name: String, size: Vector3, position: Vector3, color: 
 	_add_box(node_name, size, position, color, collision)
 
 func _create_stairs() -> void:
-	for step_index in range(8):
-		var step_size := Vector3(2.2, 0.28, 0.65)
-		var step_pos := Vector3(8.0, 0.14 + step_index * 0.26, 0.5 + step_index * 0.55)
-		_add_box("Stair %02d" % step_index, step_size, step_pos, Color(0.31, 0.22, 0.16))
+	pass
 
 func _spawn_keys() -> void:
 	var spawn_pool := KEY_SPAWNS.duplicate()
@@ -194,11 +174,12 @@ func _try_interact() -> void:
 
 func _configure_neighbor() -> void:
 	var patrol_points := [
-		Vector3(0, 0.9, -6.5),
-		Vector3(-7, 0.9, -5.0),
-		Vector3(6.5, 0.9, -4.0),
-		Vector3(-5.5, 0.9, 3.5),
-		Vector3(4.5, 0.9, 6.0)
+		Vector3(0, 0.9, -5.8),
+		Vector3(-12.0, 0.9, -6.5),
+		Vector3(11.0, 0.9, -5.6),
+		Vector3(-9.0, 0.9, 4.6),
+		Vector3(6.0, 0.9, 5.8),
+		Vector3(11.6, 0.9, 0.8)
 	]
 	uncle_grumble.call("configure", player, patrol_points)
 	uncle_grumble.connect("player_captured", _on_player_captured)

@@ -5,23 +5,29 @@ const SAFE_NAME := "^[a-zA-Z0-9 _.-]+$"
 const MULTIPLAYER_WORLD := "res://scenes/gameplay/MultiplayerWorld.tscn"
 
 const DIFFICULTIES := ["easy", "medium", "hard"]
+const DOGS := ["Milo", "Bean", "Rocket"]
 
 @onready var panel: VBoxContainer = $Panel
 
 var name_input: LineEdit
 var room_code_input: LineEdit
+var dog_select: OptionButton
 var status_label: Label
 var lobby_list: Label
 var ready_button: Button
 var start_button: Button
 var difficulty_label: Label
+var preview_pivot: Node3D
 
 var player_name := ""
 var pending_action := ""
 var selected_difficulty := 1
+var selected_dog := "Milo"
 var player_ready := false
 
 func _ready() -> void:
+	_install_animated_background()
+	_style_menu_shell()
 	NetworkClient.connected.connect(_on_connected)
 	NetworkClient.error_received.connect(_on_error_received)
 	NetworkClient.room_joined.connect(_on_room_joined)
@@ -29,21 +35,27 @@ func _ready() -> void:
 	NetworkClient.match_started.connect(_on_match_started)
 	_show_name_menu()
 
+func _process(delta: float) -> void:
+	if preview_pivot:
+		preview_pivot.rotate_y(delta * 0.12)
+
 func _show_name_menu() -> void:
 	_clear_panel()
 	_add_label("TINY PAWS", 48)
-	_add_label("Cute dogs. Creepy house. Bad decisions.", 18)
+	_add_label("Small Dogs. Big House. Bad Idea.", 18)
 	_add_spacer()
 	_add_label("PLAYER NAME", 16)
 	name_input = LineEdit.new()
 	name_input.placeholder_text = "Sumit"
 	name_input.max_length = MAX_NAME_LENGTH
 	name_input.text = _load_saved_name()
+	_style_line_edit(name_input)
 	panel.add_child(name_input)
 	status_label = _add_label("", 16)
 	_add_button("PLAY", _show_room_menu)
-	_add_button("SETTINGS", func() -> void: _set_status("Settings coming after multiplayer is playable."))
-	_add_button("CREDITS", func() -> void: _set_status("Original Tiny Paws prototype. No third-party assets yet."))
+	_add_button("HOW TO PLAY", func() -> void: _set_status("Find keys, hide under giant furniture, rescue friends, then escape."))
+	_add_button("SETTINGS", func() -> void: _set_status("Graphics presets are planned for the next performance pass."))
+	_add_button("CREDITS", func() -> void: _set_status("Original Tiny Paws prototype with procedural in-project art."))
 
 func _show_room_menu() -> void:
 	player_name = _sanitize_name(name_input.text)
@@ -56,14 +68,25 @@ func _show_room_menu() -> void:
 	_add_label("TINY PAWS", 44)
 	_add_label("MULTIPLAYER", 20)
 	_add_spacer()
+	_add_label("DOG SELECTION", 16)
+	dog_select = OptionButton.new()
+	for dog in DOGS:
+		dog_select.add_item(dog)
+	dog_select.item_selected.connect(_on_dog_selected)
+	_style_option_button(dog_select)
+	panel.add_child(dog_select)
 	status_label = _add_label("", 16)
 	_add_button("CREATE ROOM", _create_room)
 	room_code_input = LineEdit.new()
 	room_code_input.placeholder_text = "ROOM CODE"
 	room_code_input.max_length = 4
+	_style_line_edit(room_code_input)
 	panel.add_child(room_code_input)
 	_add_button("JOIN ROOM", _join_room)
 	_add_button("BACK", _show_name_menu)
+
+func _on_dog_selected(index: int) -> void:
+	selected_dog = DOGS[index]
 
 func _create_room() -> void:
 	pending_action = "create"
@@ -89,9 +112,9 @@ func _on_connected() -> void:
 
 func _send_pending_action() -> void:
 	if pending_action == "create":
-		NetworkClient.create_room(player_name, "Milo")
+		NetworkClient.create_room(player_name, selected_dog)
 	elif pending_action.begins_with("join:"):
-		NetworkClient.join_room(pending_action.trim_prefix("join:"), player_name, "Milo")
+		NetworkClient.join_room(pending_action.trim_prefix("join:"), player_name, selected_dog)
 	pending_action = ""
 
 func _on_room_joined(room_code: String, _session_id: String) -> void:
@@ -108,10 +131,12 @@ func _show_lobby(room_code: String) -> void:
 	var prev := Button.new()
 	prev.text = "<"
 	prev.pressed.connect(_previous_difficulty)
+	_style_small_button(prev)
 	difficulty_row.add_child(prev)
 	var next := Button.new()
 	next.text = ">"
 	next.pressed.connect(_next_difficulty)
+	_style_small_button(next)
 	difficulty_row.add_child(next)
 	lobby_list = _add_label("", 18)
 	ready_button = _add_button("READY", _toggle_ready)
@@ -176,6 +201,10 @@ func _add_label(text: String, font_size: int) -> Label:
 	label.text = text
 	label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	label.add_theme_font_size_override("font_size", font_size)
+	label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.78))
+	label.add_theme_color_override("font_shadow_color", Color(0.06, 0.03, 0.025, 0.75))
+	label.add_theme_constant_override("shadow_offset_x", 2)
+	label.add_theme_constant_override("shadow_offset_y", 2)
 	label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	panel.add_child(label)
 	return label
@@ -183,6 +212,8 @@ func _add_label(text: String, font_size: int) -> Label:
 func _add_button(text: String, callback: Callable) -> Button:
 	var button := Button.new()
 	button.text = text
+	button.custom_minimum_size = Vector2(260, 44)
+	_style_button(button)
 	button.pressed.connect(callback)
 	panel.add_child(button)
 	return button
@@ -225,3 +256,108 @@ func _save_name(next_player_name: String) -> void:
 	var file := FileAccess.open("user://player_name.txt", FileAccess.WRITE)
 	if file:
 		file.store_string(next_player_name)
+
+func _install_animated_background() -> void:
+	var background := $Background as ColorRect
+	background.color = Color(0.02, 0.025, 0.035, 0.58)
+
+	var container := SubViewportContainer.new()
+	container.name = "AnimatedHousePreview"
+	container.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	container.stretch = true
+	add_child(container)
+	move_child(container, 0)
+
+	var viewport := SubViewport.new()
+	viewport.size = Vector2i(1280, 720)
+	viewport.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	container.add_child(viewport)
+
+	preview_pivot = Node3D.new()
+	preview_pivot.name = "PreviewPivot"
+	viewport.add_child(preview_pivot)
+
+	var camera := Camera3D.new()
+	camera.position = Vector3(0, 5.2, 12.5)
+	camera.rotation_degrees = Vector3(-18, 0, 0)
+	camera.fov = 48
+	camera.current = true
+	viewport.add_child(camera)
+
+	var sun := DirectionalLight3D.new()
+	sun.rotation_degrees = Vector3(-38, -35, 0)
+	sun.light_energy = 1.0
+	sun.light_color = Color(0.60, 0.72, 1.0)
+	viewport.add_child(sun)
+
+	var warm := OmniLight3D.new()
+	warm.position = Vector3(0, 3.5, 1.5)
+	warm.light_energy = 2.0
+	warm.omni_range = 9
+	warm.light_color = Color(1.0, 0.63, 0.32)
+	viewport.add_child(warm)
+
+	_preview_box("PreviewFloor", Vector3(14, 0.2, 9), Vector3(0, -0.1, 0), Color(0.34, 0.22, 0.14))
+	_preview_box("PreviewBackWall", Vector3(14, 4, 0.3), Vector3(0, 1.8, -4.5), Color(0.10, 0.44, 0.52))
+	_preview_box("PreviewLeftWall", Vector3(0.3, 4, 9), Vector3(-7, 1.8, 0), Color(0.90, 0.42, 0.18))
+	_preview_box("PreviewSofa", Vector3(4.2, 0.8, 1.3), Vector3(-2.6, 0.4, 1.1), Color(0.04, 0.42, 0.50))
+	_preview_box("PreviewSofaBack", Vector3(4.4, 1.3, 0.3), Vector3(-2.6, 0.85, 1.8), Color(0.03, 0.30, 0.36))
+	_preview_box("PreviewTable", Vector3(2.4, 0.25, 1.2), Vector3(1.8, 0.65, 0.5), Color(0.56, 0.30, 0.12))
+	_preview_box("PreviewStairs", Vector3(2.8, 0.25, 0.7), Vector3(4.8, 0.2, -2.2), Color(0.42, 0.25, 0.12))
+	for i in range(7):
+		_preview_box("PreviewStep_%d" % i, Vector3(2.8, 0.2, 0.48), Vector3(4.8, 0.25 + i * 0.18, -2.2 - i * 0.48), Color(0.50, 0.29, 0.14))
+
+func _style_menu_shell() -> void:
+	panel.add_theme_constant_override("separation", 12)
+	panel.custom_minimum_size = Vector2(460, 380)
+
+func _style_button(button: Button) -> void:
+	button.add_theme_stylebox_override("normal", _stylebox(Color(0.95, 0.42, 0.18), 12))
+	button.add_theme_stylebox_override("hover", _stylebox(Color(1.0, 0.58, 0.24), 12))
+	button.add_theme_stylebox_override("pressed", _stylebox(Color(0.70, 0.22, 0.12), 12))
+	button.add_theme_color_override("font_color", Color(0.08, 0.04, 0.02))
+	button.add_theme_font_size_override("font_size", 20)
+
+func _style_small_button(button: Button) -> void:
+	button.custom_minimum_size = Vector2(48, 38)
+	_style_button(button)
+
+func _style_line_edit(line_edit: LineEdit) -> void:
+	line_edit.custom_minimum_size = Vector2(260, 42)
+	line_edit.add_theme_stylebox_override("normal", _stylebox(Color(0.08, 0.13, 0.18, 0.92), 10))
+	line_edit.add_theme_color_override("font_color", Color(1.0, 0.92, 0.78))
+	line_edit.add_theme_color_override("caret_color", Color(1.0, 0.72, 0.28))
+	line_edit.add_theme_font_size_override("font_size", 18)
+
+func _style_option_button(option_button: OptionButton) -> void:
+	option_button.custom_minimum_size = Vector2(260, 42)
+	option_button.add_theme_stylebox_override("normal", _stylebox(Color(0.08, 0.13, 0.18, 0.92), 10))
+	option_button.add_theme_stylebox_override("hover", _stylebox(Color(0.15, 0.30, 0.36, 0.95), 10))
+	option_button.add_theme_color_override("font_color", Color(1.0, 0.92, 0.78))
+	option_button.add_theme_font_size_override("font_size", 18)
+
+func _stylebox(color: Color, radius: int) -> StyleBoxFlat:
+	var style := StyleBoxFlat.new()
+	style.bg_color = color
+	style.corner_radius_top_left = radius
+	style.corner_radius_top_right = radius
+	style.corner_radius_bottom_left = radius
+	style.corner_radius_bottom_right = radius
+	style.content_margin_left = 14
+	style.content_margin_right = 14
+	style.content_margin_top = 8
+	style.content_margin_bottom = 8
+	return style
+
+func _preview_box(node_name: String, size: Vector3, position: Vector3, color: Color) -> void:
+	var mesh_instance := MeshInstance3D.new()
+	mesh_instance.name = node_name
+	mesh_instance.position = position
+	var mesh := BoxMesh.new()
+	mesh.size = size
+	mesh_instance.mesh = mesh
+	var material := StandardMaterial3D.new()
+	material.albedo_color = color
+	material.roughness = 0.78
+	mesh_instance.material_override = material
+	preview_pivot.add_child(mesh_instance)

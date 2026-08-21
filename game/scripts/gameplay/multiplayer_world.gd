@@ -1,6 +1,7 @@
 extends Node3D
 
 const REMOTE_DOG := preload("res://scenes/player/RemoteDog.tscn")
+const HOUSE_BUILDER := preload("res://scripts/art/stylized_house_builder.gd")
 const SEND_RATE := 0.05
 
 @onready var local_player: CharacterBody3D = $Player
@@ -10,6 +11,7 @@ var send_timer := 0.0
 
 func _ready() -> void:
 	_build_arena()
+	local_player.global_position = Vector3(0, 0.7, 9.0)
 	NetworkClient.player_moved.connect(_on_player_moved)
 	NetworkClient.room_state_changed.connect(_on_room_state_changed)
 	_on_room_state_changed(NetworkClient.state)
@@ -21,13 +23,8 @@ func _physics_process(delta: float) -> void:
 		NetworkClient.send_player_move(local_player.global_position, local_player.rotation.y)
 
 func _build_arena() -> void:
-	_add_box("Floor", Vector3(18, 0.25, 14), Vector3(0, -0.12, 0), Color(0.19, 0.16, 0.14))
-	_add_box("Teal Wall", Vector3(18, 3.0, 0.3), Vector3(0, 1.4, -7), Color(0.1, 0.48, 0.55))
-	_add_box("Orange Wall", Vector3(0.3, 3.0, 14), Vector3(-9, 1.4, 0), Color(0.88, 0.42, 0.16))
-	_add_box("Green Wall", Vector3(0.3, 3.0, 14), Vector3(9, 1.4, 0), Color(0.42, 0.62, 0.34))
-	_add_box("Huge Sofa Tunnel", Vector3(4.2, 0.9, 1.3), Vector3(-3.5, 0.45, 1.8), Color(0.07, 0.34, 0.42))
-	_add_box("Kitchen Island", Vector3(3.2, 0.9, 1.2), Vector3(4.0, 0.45, -2.0), Color(0.95, 0.78, 0.46))
-	_add_box("Round Rug", Vector3(4.8, 0.04, 3.0), Vector3(0, 0.03, 2.8), Color(0.63, 0.18, 0.31), false)
+	var builder := HOUSE_BUILDER.new()
+	builder.build(self)
 
 func _add_box(node_name: String, size: Vector3, position: Vector3, color: Color, collision := true) -> void:
 	var body := StaticBody3D.new()
@@ -85,4 +82,3 @@ func _ensure_remote_player(id: String, player_data: Dictionary) -> Node3D:
 	add_child(remote)
 	remote_players[id] = remote
 	return remote
-

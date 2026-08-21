@@ -18,7 +18,11 @@ var tail_node: Node3D
 var inventory_open := false
 var joint_items := 2
 var edible_items := 1
+var cigarette_items := 2
+var squeak_toy_items := 1
+var bone_items := 1
 var boost_timer := 0.0
+var calm_timer := 0.0
 var boost_cooldown := 0.0
 var inventory_layer: CanvasLayer
 var inventory_panel: PanelContainer
@@ -50,16 +54,30 @@ func _unhandled_input(event: InputEvent) -> void:
 			_use_joint_item()
 		elif event.keycode == KEY_2:
 			_use_edible_item()
+		elif event.keycode == KEY_3:
+			_use_cigarette_item()
+		elif event.keycode == KEY_4:
+			_use_squeak_toy()
+		elif event.keycode == KEY_5:
+			_use_bone()
 
 func _physics_process(delta: float) -> void:
 	if boost_timer > 0.0:
 		boost_timer -= delta
+	if calm_timer > 0.0:
+		calm_timer -= delta
 	if boost_cooldown > 0.0:
 		boost_cooldown -= delta
+	if inventory_open:
+		_refresh_inventory_label()
 
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var direction := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
-	var speed_bonus := 1.32 if boost_timer > 0.0 else 1.0
+	var speed_bonus := 1.0
+	if boost_timer > 0.0:
+		speed_bonus = 1.32
+	elif calm_timer > 0.0:
+		speed_bonus = 1.12
 	var target_speed := (sprint_speed if Input.is_action_pressed("sprint") else walk_speed) * speed_bonus
 	var target_velocity := direction * target_speed
 
@@ -164,6 +182,8 @@ func _use_joint_item() -> void:
 	joint_items -= 1
 	boost_timer = 7.0
 	boost_cooldown = 10.0
+	_spawn_smoke_puffs(Color(0.75, 0.95, 0.90), 7)
+	barked.emit(global_position, 0.45)
 	_refresh_inventory_label()
 
 func _use_edible_item() -> void:
@@ -172,6 +192,35 @@ func _use_edible_item() -> void:
 	edible_items -= 1
 	boost_timer = 11.0
 	boost_cooldown = 12.0
+	_spawn_smoke_puffs(Color(1.0, 0.78, 0.34), 4)
+	_refresh_inventory_label()
+
+func _use_cigarette_item() -> void:
+	if cigarette_items <= 0 or boost_cooldown > 0.0:
+		return
+	cigarette_items -= 1
+	calm_timer = 9.0
+	boost_cooldown = 8.0
+	_spawn_smoke_puffs(Color(0.82, 0.84, 0.78), 5)
+	barked.emit(global_position, 0.28)
+	_refresh_inventory_label()
+
+func _use_squeak_toy() -> void:
+	if squeak_toy_items <= 0 or boost_cooldown > 0.0:
+		return
+	squeak_toy_items -= 1
+	boost_cooldown = 4.0
+	barked.emit(global_position + -global_transform.basis.z * 3.0, 1.15)
+	_spawn_smoke_puffs(Color(0.95, 0.38, 0.44), 3)
+	_refresh_inventory_label()
+
+func _use_bone() -> void:
+	if bone_items <= 0 or boost_cooldown > 0.0:
+		return
+	bone_items -= 1
+	boost_cooldown = 5.0
+	barked.emit(global_position + -global_transform.basis.z * 4.5, 0.85)
+	_spawn_smoke_puffs(Color(0.95, 0.90, 0.72), 3)
 	_refresh_inventory_label()
 
 func _refresh_inventory_label() -> void:
@@ -180,13 +229,41 @@ func _refresh_inventory_label() -> void:
 	var boost_line := "Boost ready"
 	if boost_timer > 0.0:
 		boost_line = "Cartoon boost active: %.0fs" % boost_timer
+	elif calm_timer > 0.0:
+		boost_line = "Cartoon smoke focus: %.0fs" % calm_timer
 	elif boost_cooldown > 0.0:
 		boost_line = "Cooldown: %.0fs" % boost_cooldown
-	inventory_label.text = "INVENTORY\n\n1  Fictional Joint x%d\n2  Cartoon Edible x%d\n3  Distraction Item x0\n4  Utility Item x0\n\n%s" % [
+	inventory_label.text = "INVENTORY\n\n1  Fictional Joint x%d\n2  Cartoon Edible x%d\n3  Cartoon Cigarette x%d\n4  Squeak Toy x%d\n5  Throw Bone x%d\n\n%s" % [
 		joint_items,
 		edible_items,
+		cigarette_items,
+		squeak_toy_items,
+		bone_items,
 		boost_line
 	]
+
+func _spawn_smoke_puffs(color: Color, count: int) -> void:
+	for i in range(count):
+		var puff := MeshInstance3D.new()
+		puff.name = "CartoonSmokePuff"
+		puff.position = Vector3(
+			randf_range(-0.32, 0.32),
+			0.72 + randf_range(0.0, 0.35),
+			randf_range(-0.42, -0.18)
+		)
+		var mesh := SphereMesh.new()
+		mesh.radius = randf_range(0.08, 0.16)
+		mesh.height = mesh.radius * 2.0
+		puff.mesh = mesh
+		var material := StandardMaterial3D.new()
+		material.albedo_color = color
+		material.roughness = 1.0
+		puff.material_override = material
+		add_child(puff)
+		var tween := create_tween()
+		tween.tween_property(puff, "position:y", puff.position.y + randf_range(0.35, 0.65), 0.8)
+		tween.parallel().tween_property(puff, "scale", Vector3(1.8, 1.8, 1.8), 0.8)
+		tween.tween_callback(Callable(puff, "queue_free"))
 
 func _add_box(parent: Node3D, node_name: String, size: Vector3, position: Vector3, material: Material) -> MeshInstance3D:
 	var instance := MeshInstance3D.new()

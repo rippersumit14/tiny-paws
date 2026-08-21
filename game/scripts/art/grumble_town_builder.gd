@@ -44,7 +44,7 @@ func _add_night_environment() -> void:
 		_sphere("Star_%02d" % i, 0.06 + (i % 3) * 0.03, Vector3(-45 + (i * 7) % 90, 24 + (i % 5) * 2.5, -52 + (i * 11) % 32), Color(0.85, 0.92, 1.0), false)
 
 func _add_terrain() -> void:
-	_box("ReadableGreenGrass", Vector3(120, 0.18, 120), Vector3(0, -0.22, 0), Color(0.08, 0.34, 0.16), false)
+	_box("ReadableGreenGrass", Vector3(120, 0.18, 120), Vector3(0, -0.22, 0), Color(0.08, 0.34, 0.16))
 	for i in range(42):
 		var x := -52.0 + float((i * 13) % 104)
 		var z := -44.0 + float((i * 19) % 88)
@@ -55,14 +55,14 @@ func _add_terrain() -> void:
 		_tree("Tree_%02d" % i, Vector3(-48 + (i * 15) % 96, 0, -42 + (i * 23) % 84), 0.85 + (i % 4) * 0.14)
 
 func _add_main_street() -> void:
-	_box("MainStreet", Vector3(100, 0.08, 8), Vector3(0, -0.08, 41), Color(0.08, 0.10, 0.12), false)
+	_box("MainStreet", Vector3(100, 0.08, 8), Vector3(0, -0.08, 41), Color(0.08, 0.10, 0.12))
 	_box("StreetCenterStripe", Vector3(90, 0.04, 0.16), Vector3(0, 0.01, 41), Color(0.90, 0.78, 0.34), false)
-	_box("FrontWalkway", Vector3(4.0, 0.08, 42), Vector3(0, 0.0, 18), Color(0.20, 0.22, 0.24), false)
+	_box("FrontWalkway", Vector3(4.0, 0.08, 42), Vector3(0, 0.0, 18), Color(0.20, 0.22, 0.24))
 	for x in [-34, -20, 20, 34]:
 		_street_lamp("StreetLamp_%s" % x, Vector3(x, 0, 36))
 
 func _add_garden_and_manor_front() -> void:
-	_box("FrontGardenPath", Vector3(7.0, 0.07, 18), Vector3(0, 0.02, 22), Color(0.28, 0.24, 0.20), false)
+	_box("FrontGardenPath", Vector3(7.0, 0.07, 18), Vector3(0, 0.02, 22), Color(0.28, 0.24, 0.20))
 	_box("LeftHedge", Vector3(18, 1.05, 1.0), Vector3(-11, 0.52, 21), Color(0.07, 0.30, 0.15))
 	_box("RightHedge", Vector3(18, 1.05, 1.0), Vector3(11, 0.52, 21), Color(0.07, 0.30, 0.15))
 	for x in [-10, -6, 6, 10]:
@@ -94,7 +94,7 @@ func _add_neighbors() -> void:
 	_box("FrontFenceRailB", Vector3(58, 0.15, 0.16), Vector3(0, 0.55, 33), Color(0.38, 0.22, 0.10), false)
 
 func _add_park_and_shed() -> void:
-	_box("SmallParkGrass", Vector3(22, 0.06, 18), Vector3(-37, 0.03, 16), Color(0.10, 0.38, 0.16), false)
+	_box("SmallParkGrass", Vector3(22, 0.06, 18), Vector3(-37, 0.03, 16), Color(0.10, 0.38, 0.16))
 	_box("ParkBench", Vector3(3.2, 0.35, 0.75), Vector3(-39, 0.55, 18), Color(0.45, 0.25, 0.10))
 	_box("ParkBenchBack", Vector3(3.2, 0.8, 0.18), Vector3(-39, 0.95, 18.42), Color(0.34, 0.18, 0.08), false)
 	_neighbor_home("AbandonedShed", Vector3(39, 0, 18), Color(0.19, 0.22, 0.18), Vector3(6.0, 3.3, 5.0))

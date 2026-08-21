@@ -1,5 +1,7 @@
 extends CharacterBody3D
 
+signal barked(world_position: Vector3, intensity: float)
+
 @export var walk_speed := 4.2
 @export var sprint_speed := 6.0
 @export var acceleration := 12.0
@@ -45,5 +47,4 @@ func _physics_process(delta: float) -> void:
 	move_and_slide()
 
 	if Input.is_action_just_pressed("bark"):
-		print("BARK noise event placeholder")
-
+		barked.emit(global_position, 1.0)

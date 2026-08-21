@@ -13,13 +13,17 @@ const KEY_SPAWNS := [
 ]
 
 @onready var player: CharacterBody3D = $Player
+@onready var uncle_grumble: CharacterBody3D = $UncleGrumble
 
 var collected_keys := 0
 var exit_unlocked := false
 var escaped := false
+var captures := 0
+var rescues_left := 2
 var active_keys: Array[Node3D] = []
 var exit_marker: Node3D
 var hud_keys: Label
+var hud_status: Label
 var hud_prompt: Label
 var hud_notice: Label
 var notice_timer := 0.0
@@ -30,6 +34,7 @@ func _ready() -> void:
 	_spawn_keys()
 	_create_exit()
 	_create_hud()
+	_configure_neighbor()
 	_update_hud()
 	_show_notice("Find %d keys and escape Uncle Grumble's house." % REQUIRED_KEYS)
 
@@ -142,9 +147,14 @@ func _create_hud() -> void:
 	layer.add_child(hud_keys)
 
 	hud_notice = Label.new()
-	hud_notice.position = Vector2(24, 58)
+	hud_notice.position = Vector2(24, 90)
 	hud_notice.add_theme_font_size_override("font_size", 20)
 	layer.add_child(hud_notice)
+
+	hud_status = Label.new()
+	hud_status.position = Vector2(24, 56)
+	hud_status.add_theme_font_size_override("font_size", 20)
+	layer.add_child(hud_status)
 
 	hud_prompt = Label.new()
 	hud_prompt.position = Vector2(24, 650)
@@ -182,6 +192,40 @@ func _try_interact() -> void:
 		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
 		_show_notice("ESCAPED! Tiny paws, huge victory.")
 
+func _configure_neighbor() -> void:
+	var patrol_points := [
+		Vector3(0, 0.9, -6.5),
+		Vector3(-7, 0.9, -5.0),
+		Vector3(6.5, 0.9, -4.0),
+		Vector3(-5.5, 0.9, 3.5),
+		Vector3(4.5, 0.9, 6.0)
+	]
+	uncle_grumble.call("configure", player, patrol_points)
+	uncle_grumble.connect("player_captured", _on_player_captured)
+	if player.has_signal("barked"):
+		player.connect("barked", _on_player_barked)
+
+func _on_player_barked(world_position: Vector3, intensity: float) -> void:
+	uncle_grumble.call("hear_noise", world_position, intensity)
+	_show_notice("BARK! Uncle Grumble heard something.")
+
+func _on_player_captured() -> void:
+	if escaped:
+		return
+
+	captures += 1
+	if rescues_left <= 0:
+		escaped = true
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+		_show_notice("ELIMINATED. Uncle Grumble finally got you.")
+	else:
+		rescues_left -= 1
+		player.global_position = Vector3(0, 0.6, 6.8)
+		uncle_grumble.global_position = Vector3(0, 0.9, -6.5)
+		uncle_grumble.call("reset_patrol")
+		_show_notice("CAPTURED! You slipped out of the cage. Rescues left: %d" % rescues_left)
+	_update_hud()
+
 func _nearest_key() -> Node3D:
 	var best_key: Node3D = null
 	var best_distance := INF
@@ -198,6 +242,8 @@ func _nearest_key() -> Node3D:
 
 func _update_hud() -> void:
 	hud_keys.text = "KEYS: %d / %d" % [collected_keys, REQUIRED_KEYS]
+	if hud_status:
+		hud_status.text = "RESCUES LEFT: %d    CAPTURES: %d" % [rescues_left, captures]
 
 func _show_notice(message: String) -> void:
 	if hud_notice:

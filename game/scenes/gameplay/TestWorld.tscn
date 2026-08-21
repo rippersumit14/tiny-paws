@@ -1,7 +1,8 @@
-[gd_scene load_steps=5 format=3 uid="uid://tiny_paws_test_world"]
+[gd_scene load_steps=6 format=3 uid="uid://tiny_paws_test_world"]
 
 [ext_resource type="PackedScene" path="res://scenes/player/DogPlayer.tscn" id="1"]
 [ext_resource type="Script" path="res://scripts/gameplay/single_player_game.gd" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/neighbor/UncleGrumble.tscn" id="3"]
 
 [sub_resource type="BoxMesh" id="BoxMesh_floor"]
 size = Vector3(24, 0.2, 18)
@@ -29,3 +30,6 @@ shape = SubResource("BoxShape_floor")
 
 [node name="Player" parent="." instance=ExtResource("1")]
 transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+
+[node name="UncleGrumble" parent="." instance=ExtResource("3")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.9, -6)

@@ -29,8 +29,13 @@ if (env.nodeEnv !== "production") {
   app.use("/colyseus", monitor());
 }
 
+const colyseusTransport = new WebSocketTransport({ noServer: true });
+colyseusTransport.attachToServer(httpServer, {
+  filter: (req) => !req.url?.startsWith("/ws"),
+});
+
 const gameServer = new Server({
-  transport: new WebSocketTransport({ server: httpServer }),
+  transport: colyseusTransport,
 });
 gameServer.define("tiny_paws", TinyPawsRoom).filterBy(["roomCode"]);
 

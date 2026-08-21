@@ -4,9 +4,11 @@ signal player_captured
 
 enum State {
 	PATROL,
+	SUSPICIOUS,
 	INVESTIGATE,
 	CHASE,
 	SEARCH,
+	GUARD,
 	RETURN_TO_PATROL
 }
 
@@ -16,15 +18,22 @@ enum State {
 @export var field_of_view_degrees := 95.0
 @export var capture_distance := 0.85
 @export var search_duration := 2.2
+@export var hearing_sensitivity := 1.0
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var target_player: CharacterBody3D
 var patrol_points: Array[Vector3] = []
+var patrol_routes: Array[Array] = []
 var patrol_index := 0
+var route_index := 0
 var state := State.PATROL
 var investigation_point := Vector3.ZERO
+var last_seen_position := Vector3.ZERO
+var last_seen_direction := Vector3.ZERO
 var search_timer := 0.0
 var capture_cooldown := 0.0
+var guard_timer := 0.0
+var suspicion_memory: Dictionary = {}
 var arm_nodes: Array[Node3D] = []
 var leg_nodes: Array[Node3D] = []
 
@@ -40,16 +49,56 @@ func configure(player: CharacterBody3D, points: Array) -> void:
 func _ready() -> void:
 	_build_uncle_model()
 
+func configure_routes(routes: Array) -> void:
+	patrol_routes.clear()
+	for route in routes:
+		if route is Array and not route.is_empty():
+			patrol_routes.append(route)
+	if not patrol_routes.is_empty():
+		_apply_route(0)
+
+func configure_solo_difficulty(difficulty: String) -> void:
+	match difficulty:
+		"easy":
+			patrol_speed = 1.55
+			chase_speed = 2.75
+			vision_distance = 5.8
+			field_of_view_degrees = 82.0
+			search_duration = 1.45
+			hearing_sensitivity = 0.68
+		"hard":
+			patrol_speed = 2.35
+			chase_speed = 4.15
+			vision_distance = 9.4
+			field_of_view_degrees = 108.0
+			search_duration = 3.7
+			hearing_sensitivity = 1.35
+		_:
+			patrol_speed = 2.0
+			chase_speed = 3.4
+			vision_distance = 7.5
+			field_of_view_degrees = 95.0
+			search_duration = 2.2
+			hearing_sensitivity = 1.0
+
 func reset_patrol() -> void:
 	state = State.RETURN_TO_PATROL
 	capture_cooldown = 1.5
 
+func guard_at(world_position: Vector3, duration: float) -> void:
+	investigation_point = world_position
+	guard_timer = maxf(duration, 0.5)
+	state = State.GUARD
+	capture_cooldown = maxf(capture_cooldown, 2.0)
+
 func hear_noise(world_position: Vector3, intensity: float) -> void:
 	if state == State.CHASE:
 		return
-	if global_position.distance_to(world_position) <= 10.0 * max(intensity, 0.2):
+	var radius: float = 10.0 * maxf(intensity, 0.2) * hearing_sensitivity
+	if global_position.distance_to(world_position) <= radius:
+		_remember_suspicion(world_position, intensity)
 		investigation_point = world_position
-		state = State.INVESTIGATE
+		state = State.SUSPICIOUS
 
 func _physics_process(delta: float) -> void:
 	if not target_player:
@@ -59,11 +108,16 @@ func _physics_process(delta: float) -> void:
 		capture_cooldown -= delta
 
 	if _can_see_player():
+		var offset := target_player.global_position - global_position
+		last_seen_position = target_player.global_position
+		last_seen_direction = offset.normalized()
 		state = State.CHASE
 
 	match state:
 		State.PATROL:
 			_patrol(delta)
+		State.SUSPICIOUS:
+			_suspicious(delta)
 		State.INVESTIGATE:
 			_move_toward(investigation_point, patrol_speed + 0.4, delta)
 			if global_position.distance_to(investigation_point) < 0.8:
@@ -72,6 +126,8 @@ func _physics_process(delta: float) -> void:
 			_chase(delta)
 		State.SEARCH:
 			_search(delta)
+		State.GUARD:
+			_guard(delta)
 		State.RETURN_TO_PATROL:
 			_return_to_patrol(delta)
 
@@ -85,6 +141,13 @@ func _patrol(delta: float) -> void:
 	_move_toward(destination, patrol_speed, delta)
 	if global_position.distance_to(destination) < 0.8:
 		patrol_index = (patrol_index + 1) % patrol_points.size()
+		if patrol_index == 0 and not patrol_routes.is_empty():
+			_apply_route((route_index + 1) % patrol_routes.size())
+
+func _suspicious(delta: float) -> void:
+	_move_toward(investigation_point, patrol_speed * 0.85, delta)
+	if global_position.distance_to(investigation_point) < 2.4:
+		_begin_search()
 
 func _chase(delta: float) -> void:
 	var player_position := target_player.global_position
@@ -93,7 +156,7 @@ func _chase(delta: float) -> void:
 		capture_cooldown = 2.0
 		player_captured.emit()
 	elif not _can_see_player() and global_position.distance_to(player_position) > vision_distance * 0.9:
-		investigation_point = player_position
+		investigation_point = last_seen_position + last_seen_direction * 1.8
 		_begin_search()
 
 func _search(delta: float) -> void:
@@ -104,6 +167,12 @@ func _search(delta: float) -> void:
 	if search_timer <= 0.0:
 		state = State.RETURN_TO_PATROL
 
+func _guard(delta: float) -> void:
+	_move_toward(investigation_point, patrol_speed, delta)
+	guard_timer -= delta
+	if guard_timer <= 0.0:
+		state = State.RETURN_TO_PATROL
+
 func _return_to_patrol(delta: float) -> void:
 	var destination := patrol_points[patrol_index]
 	_move_toward(destination, patrol_speed, delta)
@@ -112,7 +181,8 @@ func _return_to_patrol(delta: float) -> void:
 
 func _begin_search() -> void:
 	state = State.SEARCH
-	search_timer = search_duration
+	var memory_bonus := _suspicion_bonus_for(investigation_point)
+	search_timer = search_duration + memory_bonus
 
 func _move_toward(destination: Vector3, speed: float, delta: float) -> void:
 	var offset := destination - global_position
@@ -146,6 +216,25 @@ func _can_see_player() -> bool:
 	query.exclude = [self]
 	var result := space_state.intersect_ray(query)
 	return result.is_empty() or result.get("collider") == target_player
+
+func _apply_route(index: int) -> void:
+	if patrol_routes.is_empty():
+		return
+	route_index = index
+	patrol_points.clear()
+	for point in patrol_routes[route_index]:
+		if point is Vector3:
+			patrol_points.append(point)
+	patrol_index = 0
+
+func _remember_suspicion(world_position: Vector3, intensity: float) -> void:
+	var bucket := "%d:%d" % [roundi(world_position.x / 6.0), roundi(world_position.z / 6.0)]
+	var current := float(suspicion_memory.get(bucket, 0.0))
+	suspicion_memory[bucket] = minf(3.0, current + intensity)
+
+func _suspicion_bonus_for(world_position: Vector3) -> float:
+	var bucket := "%d:%d" % [roundi(world_position.x / 6.0), roundi(world_position.z / 6.0)]
+	return float(suspicion_memory.get(bucket, 0.0)) * 0.45
 
 func _build_uncle_model() -> void:
 	for node_name in ["Body", "Head", "Nose"]:

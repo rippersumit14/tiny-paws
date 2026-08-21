@@ -3,6 +3,7 @@ extends Control
 const MAX_NAME_LENGTH := 18
 const SAFE_NAME := "^[a-zA-Z0-9 _.-]+$"
 const MULTIPLAYER_WORLD := "res://scenes/gameplay/MultiplayerWorld.tscn"
+const SINGLE_PLAYER_WORLD := "res://scenes/gameplay/TestWorld.tscn"
 
 const DIFFICULTIES := ["easy", "medium", "hard"]
 const GAME_MODES := ["ai_uncle", "player_uncle"]
@@ -49,6 +50,20 @@ func _show_name_menu() -> void:
 	_add_label("TINY PAWS", 48)
 	_add_label("Small Dogs. Big House. Bad Idea.", 18)
 	_add_spacer()
+	_add_button("SINGLE PLAYER", _show_single_player_menu)
+	_add_button("MULTIPLAYER", _show_multiplayer_name_menu)
+	_add_button("CUSTOMIZE", func() -> void: _set_status("Customization preview is coming next. Dog selection already works in Single Player and Multiplayer."))
+	_add_button("SETTINGS", func() -> void: _set_status("Graphics/audio settings are planned for the next UI pass."))
+	_add_button("HOW TO PLAY", func() -> void: _set_status("Find keys, use dog routes and items, avoid Uncle, escape the manor."))
+	_add_button("CREDITS", func() -> void: _set_status("Original Tiny Paws prototype with procedural in-project art."))
+	_add_button("QUIT", func() -> void: get_tree().quit())
+	status_label = _add_label("", 16)
+
+func _show_multiplayer_name_menu() -> void:
+	_clear_panel()
+	_add_label("TINY PAWS", 48)
+	_add_label("MULTIPLAYER", 18)
+	_add_spacer()
 	_add_label("PLAYER NAME", 16)
 	name_input = LineEdit.new()
 	name_input.placeholder_text = "Sumit"
@@ -57,10 +72,46 @@ func _show_name_menu() -> void:
 	_style_line_edit(name_input)
 	panel.add_child(name_input)
 	status_label = _add_label("", 16)
-	_add_button("PLAY", _show_room_menu)
-	_add_button("HOW TO PLAY", func() -> void: _set_status("Find keys, hide under giant furniture, rescue friends, then escape."))
-	_add_button("SETTINGS", func() -> void: _set_status("Graphics presets are planned for the next performance pass."))
-	_add_button("CREDITS", func() -> void: _set_status("Original Tiny Paws prototype with procedural in-project art."))
+	_add_button("CONTINUE", _show_room_menu)
+	_add_button("BACK", _show_name_menu)
+
+func _show_single_player_menu() -> void:
+	_clear_panel()
+	_add_label("TINY PAWS", 44)
+	_add_label("SINGLE PLAYER", 20)
+	_add_spacer()
+	_add_label("SELECT DOG", 16)
+	dog_select = OptionButton.new()
+	for dog in DOGS:
+		dog_select.add_item(dog)
+	dog_select.select(DOGS.find(selected_dog))
+	dog_select.item_selected.connect(_on_dog_selected)
+	_style_option_button(dog_select)
+	panel.add_child(dog_select)
+	_add_label("SELECT DIFFICULTY", 16)
+	difficulty_label = _add_label(DIFFICULTIES[selected_difficulty].to_upper(), 20)
+	var difficulty_row := HBoxContainer.new()
+	difficulty_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	panel.add_child(difficulty_row)
+	var prev := Button.new()
+	prev.text = "<"
+	prev.pressed.connect(func() -> void:
+		selected_difficulty = wrapi(selected_difficulty - 1, 0, DIFFICULTIES.size())
+		difficulty_label.text = DIFFICULTIES[selected_difficulty].to_upper()
+	)
+	_style_small_button(prev)
+	difficulty_row.add_child(prev)
+	var next := Button.new()
+	next.text = ">"
+	next.pressed.connect(func() -> void:
+		selected_difficulty = wrapi(selected_difficulty + 1, 0, DIFFICULTIES.size())
+		difficulty_label.text = DIFFICULTIES[selected_difficulty].to_upper()
+	)
+	_style_small_button(next)
+	difficulty_row.add_child(next)
+	status_label = _add_label("", 16)
+	_add_button("START GAME", _start_single_player)
+	_add_button("BACK", _show_name_menu)
 
 func _show_room_menu() -> void:
 	player_name = _sanitize_name(name_input.text)
@@ -92,6 +143,10 @@ func _show_room_menu() -> void:
 
 func _on_dog_selected(index: int) -> void:
 	selected_dog = DOGS[index]
+
+func _start_single_player() -> void:
+	_save_single_player_config()
+	get_tree().change_scene_to_file(SINGLE_PLAYER_WORLD)
 
 func _create_room() -> void:
 	pending_action = "create"
@@ -301,6 +356,14 @@ func _save_name(next_player_name: String) -> void:
 	var file := FileAccess.open("user://player_name.txt", FileAccess.WRITE)
 	if file:
 		file.store_string(next_player_name)
+
+func _save_single_player_config() -> void:
+	var file := FileAccess.open("user://single_player_config.json", FileAccess.WRITE)
+	if file:
+		file.store_string(JSON.stringify({
+			"dog": selected_dog,
+			"difficulty": DIFFICULTIES[selected_difficulty]
+		}))
 
 func _install_animated_background() -> void:
 	var background := $Background as ColorRect

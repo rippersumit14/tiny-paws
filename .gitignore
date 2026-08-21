@@ -3,12 +3,12 @@
 *.import
 export_presets.cfg
 *.translation
+!game/export_presets.cfg
 
 # Godot exports/builds
 builds/
 game/.godot/
 game/.import/
-game/export_presets.cfg
 
 # Node
 node_modules/
@@ -32,4 +32,3 @@ desktop.ini
 .vscode/
 *.swp
 *.swo
-

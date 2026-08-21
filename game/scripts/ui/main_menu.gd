@@ -4,9 +4,9 @@ const MAX_NAME_LENGTH := 18
 const SAFE_NAME := "^[a-zA-Z0-9 _.-]+$"
 const TEST_WORLD := "res://scenes/gameplay/TestWorld.tscn"
 
-@onready var name_input: LineEdit = %NameInput
-@onready var status_label: Label = %StatusLabel
-@onready var play_button: Button = %PlayButton
+@onready var name_input: LineEdit = $Panel/NameInput
+@onready var status_label: Label = $Panel/StatusLabel
+@onready var play_button: Button = $Panel/PlayButton
 
 func _ready() -> void:
 	name_input.text = _load_saved_name()
@@ -46,4 +46,3 @@ func _save_name(player_name: String) -> void:
 	var file := FileAccess.open("user://player_name.txt", FileAccess.WRITE)
 	if file:
 		file.store_string(player_name)
-

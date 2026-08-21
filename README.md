@@ -4,7 +4,13 @@ Tiny Paws: Escape the Neighbor is a lightweight 3D co-op horror-comedy prototype
 
 ## Play
 
-Public browser deployment is not live yet. The planned client deployment target is GitHub Pages for the Godot Web export, with the multiplayer server hosted separately on a free WebSocket-capable Node.js host.
+The multiplayer server is live on Render:
+
+```text
+https://tiny-paws.onrender.com
+```
+
+The browser client is deployed by GitHub Actions to GitHub Pages after each push to `main`.
 
 ## About
 
@@ -81,7 +87,7 @@ npm install
 npm run dev
 ```
 
-Open `game/project.godot` in Godot 4.x and run the project. The local development server URL is `ws://localhost:2567`.
+Open `game/project.godot` in Godot 4.x and run the project. Local desktop/editor builds use `ws://localhost:2567/ws`.
 
 ## Running Multiplayer Server
 
@@ -93,26 +99,37 @@ npm start
 
 Configuration can be copied from `.env.example`. Do not commit `.env`.
 
-Local Godot/Web clients connect to the JSON realtime gateway at:
+Local Godot/editor clients connect to the JSON realtime gateway at:
 
 ```text
 ws://localhost:2567/ws
+```
+
+Exported browser clients connect to the production gateway at:
+
+```text
+wss://tiny-paws.onrender.com/ws
 ```
 
 The server also keeps the Colyseus room implementation and smoke test available while the Godot client uses the browser-friendly JSON gateway.
 
 ## Building Web Client
 
-Install Godot 4.x with Web export templates, then export the `game/` project using a Web preset. The production client should use a `wss://` server URL configured through project settings or exported environment config.
+Install Godot 4.x with Web export templates, then export the `game/` project using the Web preset:
+
+```bash
+mkdir -p builds/web
+godot --headless --path game --export-release Web ../builds/web/index.html
+```
 
 ## Deployment
 
-The intended deployment split is:
+The deployment split is:
 
 - GitHub Actions builds the Godot Web client and publishes static files to GitHub Pages.
-- A separate free Node-compatible host runs the Colyseus server with WebSocket support.
+- Render runs the Node.js realtime server with WebSocket support.
 
-The exact server host will be selected and documented after validating current free-tier availability.
+Enable GitHub Pages with the `GitHub Actions` source in the repository settings, then push to `main` or run the `Deploy Godot Web` workflow manually.
 
 ## Screenshots
 

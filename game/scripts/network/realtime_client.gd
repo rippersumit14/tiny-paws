@@ -8,10 +8,11 @@ signal room_joined(room_code: String, session_id: String)
 signal match_started
 signal player_moved(session_id: String, position: Vector3, yaw: float)
 
-const DEFAULT_SERVER_URL := "ws://localhost:2567/ws"
+const LOCAL_SERVER_URL := "ws://localhost:2567/ws"
+const WEB_SERVER_URL := "wss://tiny-paws.onrender.com/ws"
 
 var socket := WebSocketPeer.new()
-var server_url := DEFAULT_SERVER_URL
+var server_url := _default_server_url()
 var session_id := ""
 var room_code := ""
 var state: Dictionary = {}
@@ -31,8 +32,8 @@ func _process(_delta: float) -> void:
 		_connected = false
 		disconnected.emit()
 
-func connect_to_server(url := DEFAULT_SERVER_URL) -> void:
-	server_url = url
+func connect_to_server(url := "") -> void:
+	server_url = url if not url.is_empty() else _default_server_url()
 	if socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
 		return
 	var err := socket.connect_to_url(server_url)
@@ -78,6 +79,9 @@ func is_host() -> bool:
 
 func players() -> Array:
 	return state.get("players", [])
+
+func _default_server_url() -> String:
+	return WEB_SERVER_URL if OS.has_feature("web") else LOCAL_SERVER_URL
 
 func _send(message: Dictionary) -> void:
 	if socket.get_ready_state() != WebSocketPeer.STATE_OPEN:

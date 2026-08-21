@@ -1,32 +1,42 @@
 # Tiny Paws
 
-Tiny Paws: Escape the Neighbor is a lightweight 3D co-op horror-comedy prototype about tiny dogs sneaking through an oversized house, finding keys, rescuing captured teammates, and escaping Uncle Grumble.
+Tiny Paws is transitioning into a downloadable Windows 3D multiplayer stealth-horror game about tiny dogs sneaking through Grumble Town, entering Uncle Grumble's moonlit manor, rescuing captured teammates, collecting keys, and escaping.
 
 ## Play
 
-The multiplayer server is live on Render:
+The public site is now a marketing and download website. It no longer embeds the playable game:
+
+```text
+https://rippersumit14.github.io/tiny-paws/
+```
+
+The multiplayer server remains live on Render for current room tests:
 
 ```text
 https://tiny-paws.onrender.com
 ```
 
-The browser client is deployed by GitHub Actions to GitHub Pages after each push to `main`.
-
 ## About
 
-The prototype is built as a vertical slice: small scope, original low-poly assets, fast rounds, and an authoritative multiplayer architecture.
+The project now has two products:
+
+- Windows game: Godot 4.7, staged native C++/GDExtension gameplay foundation, downloadable Windows export, and authoritative multiplayer.
+- Website: React frontend, Express backend stub, and GitHub Pages deployment for information, screenshots, roadmap, GitHub links, and Windows downloads.
 
 ## Gameplay
 
-Players enter a display name, create or join a short room code, ready up in the lobby, then explore the same house together. The team collects randomized keys, avoids Uncle Grumble, rescues captured friends, unlocks the exit, and escapes individually.
+Players enter a display name, host or join a short room code, choose AI Uncle or Player Uncle mode, ready up, then spawn outside at night in Grumble Town facing Uncle Grumble's manor. Dogs search for keys, use dog-scale routes, manage a small quick inventory, rescue captured friends, and escape.
 
 ## Features
 
-- Godot 4 client scaffold with menu, player controller, and starter world scenes.
+- Godot 4 Windows-first client with a Windows Desktop export preset.
+- Staged C++/GDExtension native gameplay foundation under `game/native`.
+- Moonlit Grumble Town exterior pass with green grass, street lamps, neighboring homes, park, shed, garden, and manor silhouette.
 - Node.js, TypeScript, and Colyseus authoritative multiplayer server.
 - Configurable room capacity with `MAX_ROOM_PLAYERS`, defaulting to 8.
 - Display-name validation without accounts or persistent profiles.
-- Lobby state for host, difficulty, dog selection, and ready status.
+- Lobby state for host, difficulty, AI Uncle / Player Uncle mode, dog selection, Uncle volunteer intent, and ready status.
+- TAB quick inventory with limited fictional boost items and cooldowns.
 - Server-owned match state for objectives, captures, rescues, escapes, and results.
 - Health endpoint at `GET /health`.
 
@@ -38,13 +48,14 @@ Players enter a display name, create or join a short room code, ready up in the 
 - `E`: Interact
 - `F`: Flashlight
 - `Q`: Bark
+- `Tab`: Quick inventory
 - `Space`: Jump
 - `Esc`: Pause
 
 ## Multiplayer Architecture
 
 ```text
-GitHub Pages Godot Web Client
+Windows Godot Client
           |
           | WSS
           v
@@ -54,7 +65,7 @@ Node.js + TypeScript + Colyseus Server
 Authoritative Room State
 ```
 
-GitHub Pages only hosts the static web client. It does not run the Node.js server.
+GitHub Pages only hosts the marketing/download website. It does not run the game or the Node.js server.
 
 ## Difficulty Modes
 
@@ -64,16 +75,19 @@ GitHub Pages only hosts the static web client. It does not run the Node.js serve
 
 ## Tech Stack
 
-- Client: Godot 4.x and GDScript.
+- Game client: Godot 4.7, GDScript, and staged C++/GDExtension modules.
 - Multiplayer server: Node.js, TypeScript, Colyseus, and Express.
-- Deployment target: GitHub Actions and GitHub Pages for the web client, separate Node-compatible hosting for the server.
+- Website: React, Vite, Node.js, Express, and optional future MongoDB.
+- Deployment target: GitHub Actions and GitHub Pages for the website, Render for the realtime server, GitHub Actions artifact workflow for Windows builds.
 
 ## Architecture
 
 ```text
 tiny-paws/
   game/      Godot 4 client
+  game/native/ C++/GDExtension gameplay foundation
   server/    Colyseus authoritative multiplayer backend
+  website/   React/Express download website
   docs/      screenshots and project media
 ```
 
@@ -87,7 +101,7 @@ npm install
 npm run dev
 ```
 
-Open `game/project.godot` in Godot 4.x and run the project. Local desktop/editor builds use `ws://localhost:2567/ws`.
+Open `game/project.godot` in Godot 4.7 and run the project. Local desktop/editor builds use `ws://localhost:2567/ws`.
 
 ## Running Multiplayer Server
 
@@ -105,31 +119,27 @@ Local Godot/editor clients connect to the JSON realtime gateway at:
 ws://localhost:2567/ws
 ```
 
-Exported browser clients connect to the production gateway at:
+Production Windows clients currently connect to the JSON realtime gateway at `wss://tiny-paws.onrender.com/ws`.
 
-```text
-wss://tiny-paws.onrender.com/ws
-```
+## Building Windows Game
 
-The server also keeps the Colyseus room implementation and smoke test available while the Godot client uses the browser-friendly JSON gateway.
+Install Godot 4.7 with Windows export templates, then export the `game/` project using the Windows preset:
 
-## Building Web Client
-
-Install Godot 4.x with Web export templates, then export the `game/` project using the Web preset:
-
-```bash
-mkdir -p builds/web
-godot --headless --path game --export-release Web ../builds/web/index.html
+```powershell
+mkdir builds/windows
+godot --headless --path game --export-release "Windows Desktop" ../builds/windows/TinyPaws.exe
+Compress-Archive -Path builds/windows/* -DestinationPath TinyPaws-Windows-x64.zip -Force
 ```
 
 ## Deployment
 
 The deployment split is:
 
-- GitHub Actions builds the Godot Web client and publishes static files to GitHub Pages.
+- GitHub Actions builds the React website and publishes static files to GitHub Pages.
 - Render runs the Node.js realtime server with WebSocket support.
+- The Windows Game Build workflow exports `TinyPaws.exe` and uploads `TinyPaws-Windows-x64.zip` as a build artifact.
 
-Enable GitHub Pages with the `GitHub Actions` source in the repository settings, then push to `main` or run the `Deploy Godot Web` workflow manually.
+GitHub Releases will be used for public Windows ZIP downloads once the first packaged build is promoted.
 
 ## Screenshots
 
@@ -137,14 +147,12 @@ Screenshots will be added under `docs/images/` after the playable scene has stab
 
 ## Roadmap
 
-- Complete Godot movement, camera, and interaction loop.
-- Build compact oversized house.
-- Add key collection and escape objective.
-- Add Uncle Grumble AI.
-- Add capture, rescue, elimination, and spectator states.
-- Connect Godot client to Colyseus server.
-- Synchronize gameplay and results.
-- Configure web export and deployment.
+- Replace procedural placeholder models with authored production-quality dog, Uncle, manor, and town assets.
+- Compile and activate the staged native C++/GDExtension gameplay module.
+- Package the first Windows release ZIP and attach it to GitHub Releases.
+- Expand AI Uncle and implement Player Uncle gameplay.
+- Synchronize inventory, keys, doors, captures, rescues, escapes, and match results.
+- Add settings, graphics presets, audio, chase polish, and edge-case recovery.
 
 ## Credits
 

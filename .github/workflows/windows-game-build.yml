@@ -1,0 +1,44 @@
+name: Windows Game Build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "game/**"
+      - ".github/workflows/windows-game-build.yml"
+
+jobs:
+  export-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Godot and export templates
+        shell: pwsh
+        run: |
+          $GodotVersion = "4.7.2"
+          $GodotTag = "4.7.2-stable"
+          Invoke-WebRequest "https://github.com/godotengine/godot/releases/download/$GodotTag/Godot_v$($GodotTag)_win64.exe.zip" -OutFile godot.zip
+          Expand-Archive godot.zip -DestinationPath godot
+          Invoke-WebRequest "https://github.com/godotengine/godot/releases/download/$GodotTag/Godot_v$($GodotTag)_export_templates.tpz" -OutFile templates.tpz
+          New-Item -ItemType Directory -Force "$env:APPDATA\Godot\export_templates\$GodotVersion.stable" | Out-Null
+          Copy-Item templates.tpz templates.zip
+          Expand-Archive templates.zip -DestinationPath templates
+          Copy-Item templates\templates\* "$env:APPDATA\Godot\export_templates\$GodotVersion.stable" -Recurse -Force
+
+      - name: Export Windows game
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force builds\windows | Out-Null
+          .\godot\Godot_v4.7.2-stable_win64.exe --headless --path game --export-release "Windows Desktop" ..\builds\windows\TinyPaws.exe
+
+      - name: Package Windows ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path builds\windows\* -DestinationPath TinyPaws-Windows-x64.zip -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: TinyPaws-Windows-x64
+          path: TinyPaws-Windows-x64.zip

@@ -2,6 +2,7 @@ extends Node3D
 
 const REMOTE_DOG := preload("res://scenes/player/RemoteDog.tscn")
 const HOUSE_BUILDER := preload("res://scripts/art/stylized_house_builder.gd")
+const TOWN_BUILDER := preload("res://scripts/art/grumble_town_builder.gd")
 const SEND_RATE := 0.05
 
 @onready var local_player: CharacterBody3D = $Player
@@ -11,7 +12,7 @@ var send_timer := 0.0
 
 func _ready() -> void:
 	_build_arena()
-	local_player.global_position = Vector3(0, 0.7, 9.0)
+	local_player.global_position = _spawn_position_for_index(0)
 	NetworkClient.player_moved.connect(_on_player_moved)
 	NetworkClient.room_state_changed.connect(_on_room_state_changed)
 	_on_room_state_changed(NetworkClient.state)
@@ -23,6 +24,8 @@ func _physics_process(delta: float) -> void:
 		NetworkClient.send_player_move(local_player.global_position, local_player.rotation.y)
 
 func _build_arena() -> void:
+	var town_builder := TOWN_BUILDER.new()
+	town_builder.build(self)
 	var builder := HOUSE_BUILDER.new()
 	builder.build(self)
 
@@ -79,6 +82,10 @@ func _ensure_remote_player(id: String, player_data: Dictionary) -> Node3D:
 	remote.name = "Remote_%s" % id
 	if player_data.has("name"):
 		remote.set_player_name(String(player_data.get("name", "Player")))
+	remote.global_position = _spawn_position_for_index(remote_players.size() + 1)
 	add_child(remote)
 	remote_players[id] = remote
 	return remote
+
+func _spawn_position_for_index(index: int) -> Vector3:
+	return Vector3(-3.6 + float(index % 4) * 2.4, 0.7, 32.0 + float(index / 4) * 1.8)

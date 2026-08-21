@@ -1,0 +1,13 @@
+#!/usr/bin/env python
+import os
+
+env = SConscript("godot-cpp/SConstruct")
+
+sources = Glob("src/*.cpp")
+
+library = env.SharedLibrary(
+    target="bin/tiny_paws_gameplay{}{}".format(env["suffix"], env["SHLIBSUFFIX"]),
+    source=sources,
+)
+
+Default(library)

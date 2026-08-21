@@ -1,6 +1,7 @@
 extends Node3D
 
 const HOUSE_BUILDER := preload("res://scripts/art/stylized_house_builder.gd")
+const TOWN_BUILDER := preload("res://scripts/art/grumble_town_builder.gd")
 const REQUIRED_KEYS := 3
 const INTERACT_DISTANCE := 1.6
 
@@ -32,7 +33,7 @@ var notice_timer := 0.0
 func _ready() -> void:
 	randomize()
 	_build_house()
-	player.global_position = Vector3(0, 0.7, 9.0)
+	player.global_position = Vector3(0, 0.7, 32.0)
 	_spawn_keys()
 	_create_exit()
 	_create_hud()
@@ -57,6 +58,8 @@ func _process(delta: float) -> void:
 		_try_interact()
 
 func _build_house() -> void:
+	var town_builder := TOWN_BUILDER.new()
+	town_builder.build(self)
 	var builder := HOUSE_BUILDER.new()
 	builder.build(self)
 	_add_box("CaptureCageBase", Vector3(2.6, 0.12, 2.6), Vector3(0, 0.08, 7.4), Color(0.10, 0.11, 0.12), false)

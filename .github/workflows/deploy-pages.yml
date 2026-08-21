@@ -1,4 +1,4 @@
-name: Deploy Godot Web
+name: Deploy Website
 
 on:
   push:
@@ -15,40 +15,31 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  export-web:
+  build-website:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Godot and export templates
-        run: |
-          set -euxo pipefail
-          GODOT_VERSION=4.7.2
-          GODOT_TAG=4.7.2-stable
-          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_linux.x86_64.zip"
-          unzip -q "Godot_v${GODOT_TAG}_linux.x86_64.zip"
-          mv "Godot_v${GODOT_TAG}_linux.x86_64" godot
-          chmod +x godot
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/client/package-lock.json
 
-          wget -q "https://github.com/godotengine/godot/releases/download/${GODOT_TAG}/Godot_v${GODOT_TAG}_export_templates.tpz"
-          mkdir -p "${HOME}/.local/share/godot/export_templates/${GODOT_VERSION}.stable"
-          unzip -q "Godot_v${GODOT_TAG}_export_templates.tpz" -d godot_templates
-          cp godot_templates/templates/* "${HOME}/.local/share/godot/export_templates/${GODOT_VERSION}.stable/"
-
-      - name: Export web client
+      - name: Build React download site
+        working-directory: website/client
         run: |
-          set -euxo pipefail
-          mkdir -p builds/web
-          ./godot --headless --path game --export-release Web ../builds/web/index.html
+          npm ci
+          npm run build
 
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: builds/web
+          path: website/client/dist
 
   deploy:
-    needs: export-web
+    needs: build-website
     runs-on: ubuntu-latest
     environment:
       name: github-pages

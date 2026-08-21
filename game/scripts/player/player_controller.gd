@@ -15,11 +15,20 @@ var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var camera_pitch := -0.22
 var leg_nodes: Array[Node3D] = []
 var tail_node: Node3D
+var inventory_open := false
+var joint_items := 2
+var edible_items := 1
+var boost_timer := 0.0
+var boost_cooldown := 0.0
+var inventory_layer: CanvasLayer
+var inventory_panel: PanelContainer
+var inventory_label: Label
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	camera_pivot.rotation.x = camera_pitch
 	_build_stylized_dog()
+	_build_inventory_ui()
 
 func _unhandled_input(event: InputEvent) -> void:
 	if event is InputEventMouseMotion and Input.mouse_mode == Input.MOUSE_MODE_CAPTURED:
@@ -33,10 +42,25 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("flashlight"):
 		flashlight.visible = not flashlight.visible
 
+	if event.is_action_pressed("inventory"):
+		_toggle_inventory()
+
+	if inventory_open and event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_1:
+			_use_joint_item()
+		elif event.keycode == KEY_2:
+			_use_edible_item()
+
 func _physics_process(delta: float) -> void:
+	if boost_timer > 0.0:
+		boost_timer -= delta
+	if boost_cooldown > 0.0:
+		boost_cooldown -= delta
+
 	var input_dir := Input.get_vector("move_left", "move_right", "move_forward", "move_back")
 	var direction := (transform.basis * Vector3(input_dir.x, 0, input_dir.y)).normalized()
-	var target_speed := sprint_speed if Input.is_action_pressed("sprint") else walk_speed
+	var speed_bonus := 1.32 if boost_timer > 0.0 else 1.0
+	var target_speed := (sprint_speed if Input.is_action_pressed("sprint") else walk_speed) * speed_bonus
 	var target_velocity := direction * target_speed
 
 	velocity.x = move_toward(velocity.x, target_velocity.x, acceleration * delta)
@@ -52,6 +76,10 @@ func _physics_process(delta: float) -> void:
 
 	if Input.is_action_just_pressed("bark"):
 		barked.emit(global_position, 1.0)
+
+	if global_position.y < -8.0:
+		global_position = Vector3(0, 0.7, 32.0)
+		velocity = Vector3.ZERO
 
 func _build_stylized_dog() -> void:
 	for node_name in ["Body", "Head"]:
@@ -97,6 +125,68 @@ func _animate_dog(_delta: float, speed: float) -> void:
 		leg_nodes[i].rotation.x = stride if i % 2 == 0 else -stride
 	if tail_node:
 		tail_node.rotation.z = 0.8 + sin(time * 8.0) * (0.35 if moving else 0.12)
+
+func _build_inventory_ui() -> void:
+	inventory_layer = CanvasLayer.new()
+	inventory_layer.name = "QuickInventory"
+	add_child(inventory_layer)
+
+	inventory_panel = PanelContainer.new()
+	inventory_panel.visible = false
+	inventory_panel.position = Vector2(28, 120)
+	inventory_panel.custom_minimum_size = Vector2(270, 190)
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.04, 0.08, 0.12, 0.88)
+	style.border_color = Color(1.0, 0.70, 0.28, 0.9)
+	style.set_border_width_all(2)
+	style.corner_radius_top_left = 8
+	style.corner_radius_top_right = 8
+	style.corner_radius_bottom_left = 8
+	style.corner_radius_bottom_right = 8
+	inventory_panel.add_theme_stylebox_override("panel", style)
+	inventory_layer.add_child(inventory_panel)
+
+	inventory_label = Label.new()
+	inventory_label.add_theme_font_size_override("font_size", 18)
+	inventory_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.76))
+	inventory_panel.add_child(inventory_label)
+	_refresh_inventory_label()
+
+func _toggle_inventory() -> void:
+	inventory_open = not inventory_open
+	if inventory_panel:
+		inventory_panel.visible = inventory_open
+	_refresh_inventory_label()
+
+func _use_joint_item() -> void:
+	if joint_items <= 0 or boost_cooldown > 0.0:
+		return
+	joint_items -= 1
+	boost_timer = 7.0
+	boost_cooldown = 10.0
+	_refresh_inventory_label()
+
+func _use_edible_item() -> void:
+	if edible_items <= 0 or boost_cooldown > 0.0:
+		return
+	edible_items -= 1
+	boost_timer = 11.0
+	boost_cooldown = 12.0
+	_refresh_inventory_label()
+
+func _refresh_inventory_label() -> void:
+	if not inventory_label:
+		return
+	var boost_line := "Boost ready"
+	if boost_timer > 0.0:
+		boost_line = "Cartoon boost active: %.0fs" % boost_timer
+	elif boost_cooldown > 0.0:
+		boost_line = "Cooldown: %.0fs" % boost_cooldown
+	inventory_label.text = "INVENTORY\n\n1  Fictional Joint x%d\n2  Cartoon Edible x%d\n3  Distraction Item x0\n4  Utility Item x0\n\n%s" % [
+		joint_items,
+		edible_items,
+		boost_line
+	]
 
 func _add_box(parent: Node3D, node_name: String, size: Vector3, position: Vector3, material: Material) -> MeshInstance3D:
 	var instance := MeshInstance3D.new()

@@ -30,6 +30,10 @@ async function main(): Promise<void> {
     await guest.waitFor("room_joined");
     await host.waitForState((state) => state.players.length === 2, "two players in lobby");
 
+    host.send({ type: "set_game_mode", gameMode: "player_uncle" });
+    guest.send({ type: "volunteer_uncle", volunteer: true });
+    await host.waitForState((state) => state.gameMode === "player_uncle", "player uncle mode");
+
     host.send({ type: "set_ready", ready: true });
     guest.send({ type: "set_ready", ready: true });
     await host.waitForState(
@@ -39,7 +43,10 @@ async function main(): Promise<void> {
 
     host.send({ type: "start_game" });
     await host.waitFor("match_started");
-    await host.waitForState((state) => state.matchState === "playing", "match start");
+    await host.waitForState(
+      (state) => state.matchState === "playing" && state.players.some((player: JsonMessage) => player.role === "uncle"),
+      "match start",
+    );
 
     host.send({
       type: "player_move",
@@ -126,4 +133,3 @@ main().catch((error: unknown) => {
   console.error(error);
   process.exitCode = 1;
 });
-

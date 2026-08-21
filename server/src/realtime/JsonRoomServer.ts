@@ -15,8 +15,12 @@ type ClientMessage =
   | { type: "join_room"; roomCode: unknown; name: unknown; dog?: unknown }
   | { type: "set_ready"; ready: unknown }
   | { type: "set_difficulty"; difficulty: unknown }
+  | { type: "set_game_mode"; gameMode: unknown }
+  | { type: "volunteer_uncle"; volunteer: unknown }
   | { type: "start_game" }
   | { type: "player_move"; position: unknown; yaw?: unknown };
+
+type GameMode = "ai_uncle" | "player_uncle";
 
 type Player = {
   sessionId: string;
@@ -24,6 +28,8 @@ type Player = {
   dog: DogArchetype;
   collar: string;
   ready: boolean;
+  uncleVolunteer: boolean;
+  role: "dog" | "uncle";
   host: boolean;
   lifecycle: "active" | "disconnected";
   position: { x: number; y: number; z: number };
@@ -34,6 +40,8 @@ type RoomState = {
   roomCode: string;
   matchState: "lobby" | "playing";
   difficulty: Difficulty;
+  gameMode: GameMode;
+  uncleSessionId: string | null;
   maxPlayers: number;
   hostSessionId: string;
   players: Map<string, Player>;
@@ -93,6 +101,12 @@ export class JsonRoomServer {
       case "set_difficulty":
         this.setDifficulty(peer, message.difficulty);
         break;
+      case "set_game_mode":
+        this.setGameMode(peer, message.gameMode);
+        break;
+      case "volunteer_uncle":
+        this.setUncleVolunteer(peer, message.volunteer);
+        break;
       case "start_game":
         this.startGame(peer);
         break;
@@ -115,6 +129,8 @@ export class JsonRoomServer {
       roomCode: this.nextRoomCode(),
       matchState: "lobby",
       difficulty: "medium",
+      gameMode: "ai_uncle",
+      uncleSessionId: null,
       maxPlayers: env.maxRoomPlayers,
       hostSessionId: peer.sessionId,
       players: new Map(),
@@ -170,6 +186,8 @@ export class JsonRoomServer {
       dog,
       collar: COLLARS[room.players.size % COLLARS.length],
       ready: false,
+      uncleVolunteer: false,
+      role: "dog",
       host,
       lifecycle: "active",
       position: { x: room.players.size * 1.2, y: 0.6, z: 0 },
@@ -201,6 +219,33 @@ export class JsonRoomServer {
     }
   }
 
+  private setGameMode(peer: Peer, gameMode: unknown): void {
+    const room = this.getPeerRoom(peer);
+    if (!room || peer.sessionId !== room.hostSessionId || room.matchState !== "lobby") {
+      return;
+    }
+
+    if (gameMode === "ai_uncle" || gameMode === "player_uncle") {
+      room.gameMode = gameMode;
+      room.uncleSessionId = null;
+      room.players.forEach((player) => {
+        player.role = "dog";
+      });
+      this.broadcastState(room);
+    }
+  }
+
+  private setUncleVolunteer(peer: Peer, volunteer: unknown): void {
+    const room = this.getPeerRoom(peer);
+    const player = room?.players.get(peer.sessionId);
+    if (!room || !player || room.matchState !== "lobby") {
+      return;
+    }
+
+    player.uncleVolunteer = Boolean(volunteer);
+    this.broadcastState(room);
+  }
+
   private startGame(peer: Peer): void {
     const room = this.getPeerRoom(peer);
     if (!room || peer.sessionId !== room.hostSessionId || room.matchState !== "lobby") {
@@ -212,11 +257,16 @@ export class JsonRoomServer {
       this.sendError(peer, "PLAYERS_NOT_READY");
       return;
     }
+    if (room.gameMode === "player_uncle" && players.length < 2) {
+      this.sendError(peer, "PLAYER_UNCLE_NEEDS_TWO_PLAYERS");
+      return;
+    }
 
     room.matchState = "playing";
+    this.assignRoles(room, players);
     players.forEach((player, index) => {
       player.ready = false;
-      player.position = { x: index * 1.2, y: 0.6, z: 0 };
+      player.position = { x: -3.6 + (index % 4) * 2.4, y: 0.7, z: 32 + Math.floor(index / 4) * 1.8 };
       player.lifecycle = "active";
     });
     this.broadcast(room, "match_started", {});
@@ -233,8 +283,8 @@ export class JsonRoomServer {
 
     player.position = {
       x: clamp(position.x, -40, 40),
-      y: clamp(position.y, -5, 12),
-      z: clamp(position.z, -40, 40),
+      y: clamp(position.y, -8, 16),
+      z: clamp(position.z, -60, 60),
     };
     if (typeof yaw === "number" && Number.isFinite(yaw)) {
       player.yaw = yaw;
@@ -302,6 +352,23 @@ export class JsonRoomServer {
     }
     return roomCode;
   }
+
+  private assignRoles(room: RoomState, players: Player[]): void {
+    room.uncleSessionId = null;
+    players.forEach((player) => {
+      player.role = "dog";
+    });
+
+    if (room.gameMode !== "player_uncle") {
+      return;
+    }
+
+    const volunteers = players.filter((player) => player.uncleVolunteer);
+    const pool = volunteers.length > 0 ? volunteers : players;
+    const chosen = pool[Math.floor(Math.random() * pool.length)];
+    chosen.role = "uncle";
+    room.uncleSessionId = chosen.sessionId;
+  }
 }
 
 function serializeRoom(room: RoomState): object {
@@ -309,6 +376,8 @@ function serializeRoom(room: RoomState): object {
     roomCode: room.roomCode,
     matchState: room.matchState,
     difficulty: room.difficulty,
+    gameMode: room.gameMode,
+    uncleSessionId: room.uncleSessionId,
     maxPlayers: room.maxPlayers,
     hostSessionId: room.hostSessionId,
     players: Array.from(room.players.values()),
@@ -318,4 +387,3 @@ function serializeRoom(room: RoomState): object {
 function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
-

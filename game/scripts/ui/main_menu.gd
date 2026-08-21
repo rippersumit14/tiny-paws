@@ -5,6 +5,7 @@ const SAFE_NAME := "^[a-zA-Z0-9 _.-]+$"
 const MULTIPLAYER_WORLD := "res://scenes/gameplay/MultiplayerWorld.tscn"
 
 const DIFFICULTIES := ["easy", "medium", "hard"]
+const GAME_MODES := ["ai_uncle", "player_uncle"]
 const DOGS := ["Milo", "Bean", "Rocket"]
 
 @onready var panel: VBoxContainer = $Panel
@@ -17,13 +18,17 @@ var lobby_list: Label
 var ready_button: Button
 var start_button: Button
 var difficulty_label: Label
+var game_mode_label: Label
+var volunteer_button: Button
 var preview_pivot: Node3D
 
 var player_name := ""
 var pending_action := ""
 var selected_difficulty := 1
+var selected_game_mode := 0
 var selected_dog := "Milo"
 var player_ready := false
+var uncle_volunteer := false
 
 func _ready() -> void:
 	_install_animated_background()
@@ -125,6 +130,20 @@ func _show_lobby(room_code: String) -> void:
 	_add_label("TINY PAWS", 42)
 	_add_label("ROOM: %s" % room_code, 26)
 	difficulty_label = _add_label("", 20)
+	game_mode_label = _add_label("", 20)
+	var mode_row := HBoxContainer.new()
+	mode_row.alignment = BoxContainer.ALIGNMENT_CENTER
+	panel.add_child(mode_row)
+	var prev_mode := Button.new()
+	prev_mode.text = "<"
+	prev_mode.pressed.connect(_previous_game_mode)
+	_style_small_button(prev_mode)
+	mode_row.add_child(prev_mode)
+	var next_mode := Button.new()
+	next_mode.text = ">"
+	next_mode.pressed.connect(_next_game_mode)
+	_style_small_button(next_mode)
+	mode_row.add_child(next_mode)
 	var difficulty_row := HBoxContainer.new()
 	difficulty_row.alignment = BoxContainer.ALIGNMENT_CENTER
 	panel.add_child(difficulty_row)
@@ -139,6 +158,7 @@ func _show_lobby(room_code: String) -> void:
 	_style_small_button(next)
 	difficulty_row.add_child(next)
 	lobby_list = _add_label("", 18)
+	volunteer_button = _add_button("I WANT TO PLAY UNCLE", _toggle_uncle_volunteer)
 	ready_button = _add_button("READY", _toggle_ready)
 	start_button = _add_button("START GAME", _start_game)
 	status_label = _add_label("", 16)
@@ -154,14 +174,21 @@ func _update_lobby(state: Dictionary) -> void:
 
 	var difficulty := String(state.get("difficulty", "medium")).to_upper()
 	difficulty_label.text = "DIFFICULTY: %s" % difficulty
+	var game_mode := String(state.get("gameMode", "ai_uncle"))
+	game_mode_label.text = "GAME MODE: %s" % game_mode.replace("_", " ").to_upper()
+	if volunteer_button:
+		volunteer_button.visible = game_mode == "player_uncle"
+		volunteer_button.text = "UNCLE VOLUNTEER: YES" if uncle_volunteer else "I WANT TO PLAY UNCLE"
 	var rows := PackedStringArray()
 	rows.append("PLAYERS")
 	for player in state.get("players", []):
 		var status := "READY" if bool(player.get("ready", false)) else "NOT READY"
 		var host_tag := " HOST" if bool(player.get("host", false)) else ""
-		rows.append("%s    %s    %s%s" % [
+		var role := String(player.get("role", "dog")).to_upper()
+		rows.append("%s    %s    %s    %s%s" % [
 			String(player.get("name", "Player")),
 			String(player.get("dog", "Milo")),
+			role,
 			status,
 			host_tag
 		])
@@ -186,6 +213,24 @@ func _next_difficulty() -> void:
 		return
 	selected_difficulty = wrapi(selected_difficulty + 1, 0, DIFFICULTIES.size())
 	NetworkClient.set_difficulty(DIFFICULTIES[selected_difficulty])
+
+func _previous_game_mode() -> void:
+	if not NetworkClient.is_host():
+		return
+	selected_game_mode = wrapi(selected_game_mode - 1, 0, GAME_MODES.size())
+	NetworkClient.set_game_mode(GAME_MODES[selected_game_mode])
+
+func _next_game_mode() -> void:
+	if not NetworkClient.is_host():
+		return
+	selected_game_mode = wrapi(selected_game_mode + 1, 0, GAME_MODES.size())
+	NetworkClient.set_game_mode(GAME_MODES[selected_game_mode])
+
+func _toggle_uncle_volunteer() -> void:
+	uncle_volunteer = not uncle_volunteer
+	NetworkClient.volunteer_uncle(uncle_volunteer)
+	if volunteer_button:
+		volunteer_button.text = "UNCLE VOLUNTEER: YES" if uncle_volunteer else "I WANT TO PLAY UNCLE"
 
 func _start_game() -> void:
 	NetworkClient.start_game()

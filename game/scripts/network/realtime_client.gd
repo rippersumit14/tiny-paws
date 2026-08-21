@@ -61,6 +61,12 @@ func set_ready(ready: bool) -> void:
 func set_difficulty(difficulty: String) -> void:
 	_send({"type": "set_difficulty", "difficulty": difficulty})
 
+func set_game_mode(game_mode: String) -> void:
+	_send({"type": "set_game_mode", "gameMode": game_mode})
+
+func volunteer_uncle(volunteer: bool) -> void:
+	_send({"type": "volunteer_uncle", "volunteer": volunteer})
+
 func start_game() -> void:
 	_send({"type": "start_game"})
 

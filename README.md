@@ -93,6 +93,14 @@ npm start
 
 Configuration can be copied from `.env.example`. Do not commit `.env`.
 
+Local Godot/Web clients connect to the JSON realtime gateway at:
+
+```text
+ws://localhost:2567/ws
+```
+
+The server also keeps the Colyseus room implementation and smoke test available while the Godot client uses the browser-friendly JSON gateway.
+
 ## Building Web Client
 
 Install Godot 4.x with Web export templates, then export the `game/` project using a Web preset. The production client should use a `wss://` server URL configured through project settings or exported environment config.
@@ -128,4 +136,3 @@ Original prototype by the Tiny Paws contributors. Third-party assets, if added, 
 ## License
 
 MIT. See `LICENSE`.
-

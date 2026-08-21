@@ -1,0 +1,34 @@
+[gd_scene load_steps=5 format=3 uid="uid://tiny_paws_remote_dog"]
+
+[ext_resource type="Script" path="res://scripts/player/remote_dog.gd" id="1"]
+
+[sub_resource type="SphereMesh" id="SphereMesh_body"]
+radius = 0.32
+height = 0.5
+
+[sub_resource type="BoxMesh" id="BoxMesh_head"]
+size = Vector3(0.42, 0.34, 0.36)
+
+[sub_resource type="StandardMaterial3D" id="Material_remote"]
+albedo_color = Color(0.82, 0.48, 0.24, 1)
+roughness = 0.8
+
+[node name="RemoteDog" type="Node3D"]
+script = ExtResource("1")
+
+[node name="Body" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 0.75, 0, 0, 0, 1.25, 0, 0.06, 0)
+mesh = SubResource("SphereMesh_body")
+material_override = SubResource("Material_remote")
+
+[node name="Head" type="MeshInstance3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.36, -0.34)
+mesh = SubResource("BoxMesh_head")
+material_override = SubResource("Material_remote")
+
+[node name="NameLabel" type="Label3D" parent="."]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.92, 0)
+pixel_size = 0.01
+billboard = 1
+text = "Player"
+

@@ -1,0 +1,16 @@
+[gd_scene load_steps=3 format=3 uid="uid://tiny_paws_multiplayer_world"]
+
+[ext_resource type="PackedScene" path="res://scenes/player/DogPlayer.tscn" id="1"]
+[ext_resource type="Script" path="res://scripts/gameplay/multiplayer_world.gd" id="2"]
+
+[node name="MultiplayerWorld" type="Node3D"]
+script = ExtResource("2")
+
+[node name="Sun" type="DirectionalLight3D" parent="."]
+transform = Transform3D(0.707107, -0.353553, 0.612372, 0, 0.866025, 0.5, -0.707107, -0.353553, 0.612372, 0, 8, 0)
+light_energy = 0.8
+shadow_enabled = true
+
+[node name="Player" parent="." instance=ExtResource("1")]
+transform = Transform3D(1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0.6, 0)
+

@@ -22,11 +22,21 @@ var cigarette_items := 2
 var squeak_toy_items := 1
 var bone_items := 1
 var boost_timer := 0.0
+var edible_timer := 0.0
 var calm_timer := 0.0
 var boost_cooldown := 0.0
+var item_use_timer := 0.0
+var pending_item := ""
+var item_use_locked := false
 var inventory_layer: CanvasLayer
 var inventory_panel: PanelContainer
 var inventory_label: Label
+var inventory_list: VBoxContainer
+var inventory_buttons: Array[Button] = []
+var selected_item_index := 0
+var was_mouse_captured_before_inventory := false
+
+const ITEM_IDS := ["joint", "cigarette", "edible", "squeak_toy", "bone"]
 
 func _ready() -> void:
 	Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
@@ -51,23 +61,31 @@ func _unhandled_input(event: InputEvent) -> void:
 
 	if inventory_open and event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_1:
-			_use_joint_item()
+			_select_inventory_item(0)
 		elif event.keycode == KEY_2:
-			_use_edible_item()
+			_select_inventory_item(1)
 		elif event.keycode == KEY_3:
-			_use_cigarette_item()
+			_select_inventory_item(2)
 		elif event.keycode == KEY_4:
-			_use_squeak_toy()
+			_select_inventory_item(3)
 		elif event.keycode == KEY_5:
-			_use_bone()
+			_select_inventory_item(4)
+		elif event.keycode == KEY_ENTER or event.keycode == KEY_KP_ENTER or event.keycode == KEY_E:
+			_use_selected_item()
 
 func _physics_process(delta: float) -> void:
 	if boost_timer > 0.0:
 		boost_timer -= delta
+	if edible_timer > 0.0:
+		edible_timer -= delta
 	if calm_timer > 0.0:
 		calm_timer -= delta
 	if boost_cooldown > 0.0:
 		boost_cooldown -= delta
+	if item_use_timer > 0.0:
+		item_use_timer -= delta
+		if item_use_timer <= 0.0:
+			_finish_pending_item()
 	if inventory_open:
 		_refresh_inventory_label()
 
@@ -76,13 +94,18 @@ func _physics_process(delta: float) -> void:
 	var speed_bonus := 1.0
 	if boost_timer > 0.0:
 		speed_bonus = 1.32
+	elif edible_timer > 0.0:
+		speed_bonus = 1.20
 	elif calm_timer > 0.0:
 		speed_bonus = 1.12
 	var target_speed := (sprint_speed if Input.is_action_pressed("sprint") else walk_speed) * speed_bonus
+	if item_use_timer > 0.0:
+		target_speed *= 0.55
 	var target_velocity := direction * target_speed
 
-	velocity.x = move_toward(velocity.x, target_velocity.x, acceleration * delta)
-	velocity.z = move_toward(velocity.z, target_velocity.z, acceleration * delta)
+	var current_acceleration := acceleration * (1.22 if calm_timer > 0.0 else 1.0)
+	velocity.x = move_toward(velocity.x, target_velocity.x, current_acceleration * delta)
+	velocity.z = move_toward(velocity.z, target_velocity.z, current_acceleration * delta)
 
 	if not is_on_floor():
 		velocity.y -= gravity * delta
@@ -152,7 +175,7 @@ func _build_inventory_ui() -> void:
 	inventory_panel = PanelContainer.new()
 	inventory_panel.visible = false
 	inventory_panel.position = Vector2(28, 120)
-	inventory_panel.custom_minimum_size = Vector2(270, 190)
+	inventory_panel.custom_minimum_size = Vector2(360, 310)
 	var style := StyleBoxFlat.new()
 	style.bg_color = Color(0.04, 0.08, 0.12, 0.88)
 	style.border_color = Color(1.0, 0.70, 0.28, 0.9)
@@ -164,83 +187,243 @@ func _build_inventory_ui() -> void:
 	inventory_panel.add_theme_stylebox_override("panel", style)
 	inventory_layer.add_child(inventory_panel)
 
+	inventory_list = VBoxContainer.new()
+	inventory_list.add_theme_constant_override("separation", 8)
+	inventory_panel.add_child(inventory_list)
+
 	inventory_label = Label.new()
 	inventory_label.add_theme_font_size_override("font_size", 18)
 	inventory_label.add_theme_color_override("font_color", Color(1.0, 0.92, 0.76))
-	inventory_panel.add_child(inventory_label)
+	inventory_list.add_child(inventory_label)
+
+	for i in range(ITEM_IDS.size()):
+		var button := Button.new()
+		button.custom_minimum_size = Vector2(320, 42)
+		button.alignment = HORIZONTAL_ALIGNMENT_LEFT
+		button.pressed.connect(func(index := i) -> void:
+			_select_inventory_item(index)
+		)
+		inventory_buttons.append(button)
+		inventory_list.add_child(button)
+
+	var use_hint := Label.new()
+	use_hint.text = "Select with 1-5 or mouse. Press E/Enter to use."
+	use_hint.add_theme_font_size_override("font_size", 14)
+	use_hint.add_theme_color_override("font_color", Color(0.78, 0.86, 0.90))
+	inventory_list.add_child(use_hint)
 	_refresh_inventory_label()
 
 func _toggle_inventory() -> void:
 	inventory_open = not inventory_open
 	if inventory_panel:
 		inventory_panel.visible = inventory_open
+	if inventory_open:
+		was_mouse_captured_before_inventory = Input.mouse_mode == Input.MOUSE_MODE_CAPTURED
+		Input.mouse_mode = Input.MOUSE_MODE_VISIBLE
+	elif was_mouse_captured_before_inventory:
+		Input.mouse_mode = Input.MOUSE_MODE_CAPTURED
 	_refresh_inventory_label()
 
-func _use_joint_item() -> void:
-	if joint_items <= 0 or boost_cooldown > 0.0:
-		return
-	joint_items -= 1
-	boost_timer = 7.0
-	boost_cooldown = 10.0
-	_spawn_smoke_puffs(Color(0.75, 0.95, 0.90), 7)
-	barked.emit(global_position, 0.45)
+func set_item_use_locked(locked: bool) -> void:
+	item_use_locked = locked
+	if locked:
+		pending_item = ""
+		item_use_timer = 0.0
+		if inventory_open:
+			_toggle_inventory()
+
+func _select_inventory_item(index: int) -> void:
+	selected_item_index = clampi(index, 0, ITEM_IDS.size() - 1)
 	_refresh_inventory_label()
 
-func _use_edible_item() -> void:
-	if edible_items <= 0 or boost_cooldown > 0.0:
+func _use_selected_item() -> void:
+	if selected_item_index < 0 or selected_item_index >= ITEM_IDS.size():
 		return
-	edible_items -= 1
-	boost_timer = 11.0
-	boost_cooldown = 12.0
-	_spawn_smoke_puffs(Color(1.0, 0.78, 0.34), 4)
+	_queue_item_use(ITEM_IDS[selected_item_index])
+
+func _queue_item_use(item_id: String) -> void:
+	if item_use_locked or item_use_timer > 0.0 or boost_cooldown > 0.0:
+		return
+	match item_id:
+		"joint":
+			if joint_items <= 0 or boost_timer > 0.0:
+				return
+			joint_items -= 1
+		"edible":
+			if edible_items <= 0 or edible_timer > 0.0:
+				return
+			edible_items -= 1
+		"cigarette":
+			if cigarette_items <= 0 or calm_timer > 0.0:
+				return
+			cigarette_items -= 1
+		"squeak_toy":
+			if squeak_toy_items <= 0:
+				return
+			squeak_toy_items -= 1
+		"bone":
+			if bone_items <= 0:
+				return
+			bone_items -= 1
+		_:
+			return
+	pending_item = item_id
+	item_use_timer = 0.42
+	_spawn_use_prop(item_id)
 	_refresh_inventory_label()
 
-func _use_cigarette_item() -> void:
-	if cigarette_items <= 0 or boost_cooldown > 0.0:
+func _finish_pending_item() -> void:
+	if pending_item == "":
 		return
-	cigarette_items -= 1
-	calm_timer = 9.0
-	boost_cooldown = 8.0
-	_spawn_smoke_puffs(Color(0.82, 0.84, 0.78), 5)
-	barked.emit(global_position, 0.28)
-	_refresh_inventory_label()
-
-func _use_squeak_toy() -> void:
-	if squeak_toy_items <= 0 or boost_cooldown > 0.0:
-		return
-	squeak_toy_items -= 1
-	boost_cooldown = 4.0
-	barked.emit(global_position + -global_transform.basis.z * 3.0, 1.15)
-	_spawn_smoke_puffs(Color(0.95, 0.38, 0.44), 3)
-	_refresh_inventory_label()
-
-func _use_bone() -> void:
-	if bone_items <= 0 or boost_cooldown > 0.0:
-		return
-	bone_items -= 1
-	boost_cooldown = 5.0
-	barked.emit(global_position + -global_transform.basis.z * 4.5, 0.85)
-	_spawn_smoke_puffs(Color(0.95, 0.90, 0.72), 3)
+	var item_id := pending_item
+	pending_item = ""
+	match item_id:
+		"joint":
+			boost_timer = 7.0
+			boost_cooldown = 9.0
+			_spawn_smoke_puffs(Color(0.75, 0.95, 0.90), 7)
+			barked.emit(global_position, 0.45)
+		"edible":
+			edible_timer = 14.0
+			boost_cooldown = 11.0
+			_spawn_smoke_puffs(Color(1.0, 0.78, 0.34), 4)
+		"cigarette":
+			calm_timer = 9.0
+			boost_cooldown = 7.0
+			_spawn_smoke_puffs(Color(0.82, 0.84, 0.78), 5)
+			barked.emit(global_position, 0.28)
+		"squeak_toy":
+			boost_cooldown = 3.0
+			barked.emit(global_position + -global_transform.basis.z * 3.0, 1.15)
+			_spawn_smoke_puffs(Color(0.95, 0.38, 0.44), 3)
+		"bone":
+			boost_cooldown = 4.0
+			barked.emit(global_position + -global_transform.basis.z * 4.5, 0.85)
+			_spawn_smoke_puffs(Color(0.95, 0.90, 0.72), 3)
 	_refresh_inventory_label()
 
 func _refresh_inventory_label() -> void:
 	if not inventory_label:
 		return
-	var boost_line := "Boost ready"
+	var boost_line := "Ready"
+	if item_use_timer > 0.0:
+		boost_line = "Using %s..." % _item_name(pending_item)
 	if boost_timer > 0.0:
-		boost_line = "Cartoon boost active: %.0fs" % boost_timer
+		boost_line = "Joint speed: %.0fs" % boost_timer
+	elif edible_timer > 0.0:
+		boost_line = "Edible energy: %.0fs" % edible_timer
 	elif calm_timer > 0.0:
-		boost_line = "Cartoon smoke focus: %.0fs" % calm_timer
+		boost_line = "Cigarette focus: %.0fs" % calm_timer
 	elif boost_cooldown > 0.0:
 		boost_line = "Cooldown: %.0fs" % boost_cooldown
-	inventory_label.text = "INVENTORY\n\n1  Fictional Joint x%d\n2  Cartoon Edible x%d\n3  Cartoon Cigarette x%d\n4  Squeak Toy x%d\n5  Throw Bone x%d\n\n%s" % [
-		joint_items,
-		edible_items,
-		cigarette_items,
-		squeak_toy_items,
-		bone_items,
-		boost_line
-	]
+	inventory_label.text = "QUICK ITEMS\n%s" % boost_line
+	for i in range(inventory_buttons.size()):
+		var item_id: String = ITEM_IDS[i]
+		var selected := i == selected_item_index
+		var count := _item_count(item_id)
+		inventory_buttons[i].text = "%s [%d] %s  x%d\n    %s" % [
+			">" if selected else " ",
+			i + 1,
+			_item_name(item_id),
+			count,
+			_item_description(item_id)
+		]
+		_style_inventory_button(inventory_buttons[i], selected, count > 0)
+
+func _item_count(item_id: String) -> int:
+	match item_id:
+		"joint":
+			return joint_items
+		"edible":
+			return edible_items
+		"cigarette":
+			return cigarette_items
+		"squeak_toy":
+			return squeak_toy_items
+		"bone":
+			return bone_items
+		_:
+			return 0
+
+func _item_name(item_id: String) -> String:
+	match item_id:
+		"joint":
+			return "Fictional Joint"
+		"edible":
+			return "Cartoon Edible"
+		"cigarette":
+			return "Cartoon Cigarette"
+		"squeak_toy":
+			return "Squeak Toy"
+		"bone":
+			return "Throw Bone"
+		_:
+			return "Item"
+
+func _item_description(item_id: String) -> String:
+	match item_id:
+		"joint":
+			return "Short movement boost with smoke puffs."
+		"edible":
+			return "Longer energy boost for sprint escapes."
+		"cigarette":
+			return "Focus boost: steadier acceleration."
+		"squeak_toy":
+			return "Loud distraction in front of you."
+		"bone":
+			return "Throws a tempting noise farther away."
+		_:
+			return ""
+
+func _style_inventory_button(button: Button, selected: bool, available: bool) -> void:
+	var style := StyleBoxFlat.new()
+	style.bg_color = Color(0.10, 0.17, 0.20, 0.92) if available else Color(0.08, 0.08, 0.09, 0.84)
+	style.border_color = Color(1.0, 0.76, 0.30, 1.0) if selected else Color(0.30, 0.42, 0.48, 0.75)
+	style.set_border_width_all(2 if selected else 1)
+	style.corner_radius_top_left = 6
+	style.corner_radius_top_right = 6
+	style.corner_radius_bottom_left = 6
+	style.corner_radius_bottom_right = 6
+	button.add_theme_stylebox_override("normal", style)
+	button.add_theme_stylebox_override("hover", style)
+	button.add_theme_stylebox_override("pressed", style)
+	button.disabled = not available
+
+func _spawn_use_prop(item_id: String) -> void:
+	var prop := MeshInstance3D.new()
+	prop.name = "UseProp_%s" % item_id
+	prop.position = Vector3(0, 0.55, -0.72)
+	var mesh := BoxMesh.new()
+	mesh.size = Vector3(0.34, 0.08, 0.12)
+	if item_id == "edible":
+		mesh.size = Vector3(0.22, 0.16, 0.22)
+	elif item_id == "bone":
+		mesh.size = Vector3(0.48, 0.12, 0.16)
+	prop.mesh = mesh
+	var material := StandardMaterial3D.new()
+	material.albedo_color = _item_color(item_id)
+	material.roughness = 0.8
+	prop.material_override = material
+	add_child(prop)
+	var tween := create_tween()
+	tween.tween_property(prop, "position:y", 0.78, 0.2)
+	tween.tween_property(prop, "scale", Vector3(0.2, 0.2, 0.2), 0.22)
+	tween.tween_callback(Callable(prop, "queue_free"))
+
+func _item_color(item_id: String) -> Color:
+	match item_id:
+		"joint":
+			return Color(0.80, 0.95, 0.78)
+		"edible":
+			return Color(1.0, 0.65, 0.25)
+		"cigarette":
+			return Color(0.92, 0.90, 0.78)
+		"squeak_toy":
+			return Color(0.95, 0.25, 0.32)
+		"bone":
+			return Color(0.92, 0.84, 0.62)
+		_:
+			return Color.WHITE
 
 func _spawn_smoke_puffs(color: Color, count: int) -> void:
 	for i in range(count):

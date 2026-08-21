@@ -279,6 +279,8 @@ func _on_player_captured() -> void:
 		rescues_left -= 1
 		captured = true
 		cage_escape_progress = 0.0
+		if player.has_method("set_item_use_locked"):
+			player.call("set_item_use_locked", true)
 		player.global_position = Vector3(0, 0.7, 6.8)
 		player.velocity = Vector3.ZERO
 		uncle_grumble.global_position = Vector3(0, 0.9, -6.5)
@@ -289,6 +291,8 @@ func _on_player_captured() -> void:
 func _escape_cage() -> void:
 	captured = false
 	cage_escape_progress = 0.0
+	if player.has_method("set_item_use_locked"):
+		player.call("set_item_use_locked", false)
 	player.global_position = Vector3(1.8, 0.7, 7.8)
 	player.velocity = Vector3.ZERO
 	uncle_grumble.call("reset_patrol")

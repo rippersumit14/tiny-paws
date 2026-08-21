@@ -20,6 +20,8 @@ enum State {
 @export var search_duration := 2.2
 @export var hearing_sensitivity := 1.0
 @export var debug_ai := false
+@export var adaptive_ai_enabled := false
+@export var ai_service_url := "http://127.0.0.1:8765/uncle/decision"
 
 var gravity: float = ProjectSettings.get_setting("physics/3d/default_gravity")
 var target_player: CharacterBody3D
@@ -52,6 +54,13 @@ var movement_expected := false
 var chase_lost_timer := 0.0
 var committed_target_time := 0.0
 var ai_debug_label: Label3D
+var ai_request: HTTPRequest
+var ai_request_pending := false
+var ai_decision_timer := 0.0
+var ai_retry_cooldown := 0.0
+var heard_noise_events: Array[Dictionary] = []
+var last_seen_age := 999.0
+var difficulty_name := "medium"
 
 const PATH_RECALC_SECONDS := 0.38
 const CHASE_RECALC_SECONDS := 0.18
@@ -60,6 +69,7 @@ const STUCK_SAMPLE_SECONDS := 0.55
 const STUCK_DISTANCE_THRESHOLD := 0.09
 const STUCK_RECOVERY_SECONDS := 1.35
 const CHASE_COMMIT_SECONDS := 2.0
+const AI_DECISION_SECONDS := 1.2
 
 func configure(player: CharacterBody3D, points: Array) -> void:
 	target_player = player
@@ -75,6 +85,7 @@ func _ready() -> void:
 	stuck_probe_position = global_position
 	last_good_position = global_position
 	_build_debug_label()
+	_setup_adaptive_ai()
 
 func configure_routes(routes: Array) -> void:
 	patrol_routes.clear()
@@ -86,6 +97,7 @@ func configure_routes(routes: Array) -> void:
 	_build_navigation_graph()
 
 func configure_solo_difficulty(difficulty: String) -> void:
+	difficulty_name = difficulty
 	match difficulty:
 		"easy":
 			patrol_speed = 1.55
@@ -127,6 +139,11 @@ func hear_noise(world_position: Vector3, intensity: float) -> void:
 	var radius: float = 10.0 * maxf(intensity, 0.2) * hearing_sensitivity
 	if global_position.distance_to(world_position) <= radius:
 		_remember_suspicion(world_position, intensity)
+		heard_noise_events.append({
+			"position": world_position,
+			"intensity": intensity,
+			"age_seconds": 0.0
+		})
 		investigation_point = world_position
 		state = State.SUSPICIOUS
 		_set_navigation_destination(investigation_point, true)
@@ -137,6 +154,8 @@ func _physics_process(delta: float) -> void:
 
 	repath_timer = maxf(0.0, repath_timer - delta)
 	committed_target_time = maxf(0.0, committed_target_time - delta)
+	last_seen_age += delta
+	_age_noise_events(delta)
 	if capture_cooldown > 0.0:
 		capture_cooldown -= delta
 
@@ -144,9 +163,12 @@ func _physics_process(delta: float) -> void:
 		var offset := target_player.global_position - global_position
 		last_seen_position = target_player.global_position
 		last_seen_direction = offset.normalized()
+		last_seen_age = 0.0
 		chase_lost_timer = 0.0
 		committed_target_time = CHASE_COMMIT_SECONDS
 		state = State.CHASE
+	else:
+		_update_adaptive_ai(delta)
 
 	match state:
 		State.PATROL:
@@ -424,6 +446,153 @@ func _jitter_destination(destination: Vector3) -> Vector3:
 	var angle := randf() * TAU
 	var radius := randf_range(0.65, 1.55)
 	return destination + Vector3(cos(angle) * radius, 0.0, sin(angle) * radius)
+
+func _setup_adaptive_ai() -> void:
+	var mode := OS.get_environment("TINY_PAWS_AI_MODE").to_lower()
+	if mode == "adaptive" or mode == "llm":
+		adaptive_ai_enabled = true
+	var configured_url := OS.get_environment("TINY_PAWS_AI_URL")
+	if configured_url != "":
+		ai_service_url = configured_url
+	if not adaptive_ai_enabled:
+		return
+	ai_request = HTTPRequest.new()
+	ai_request.name = "UncleAIStrategyRequest"
+	ai_request.timeout = 0.65
+	ai_request.request_completed.connect(_on_ai_request_completed)
+	add_child(ai_request)
+
+func _update_adaptive_ai(delta: float) -> void:
+	if not adaptive_ai_enabled or not ai_request or ai_request_pending:
+		return
+	if ai_retry_cooldown > 0.0:
+		ai_retry_cooldown -= delta
+		return
+	ai_decision_timer -= delta
+	if ai_decision_timer > 0.0:
+		return
+	ai_decision_timer = AI_DECISION_SECONDS
+	var payload := _build_ai_payload()
+	var err := ai_request.request(
+		ai_service_url,
+		["Content-Type: application/json"],
+		HTTPClient.METHOD_POST,
+		JSON.stringify(payload)
+	)
+	if err == OK:
+		ai_request_pending = true
+	else:
+		ai_retry_cooldown = 4.0
+
+func _build_ai_payload() -> Dictionary:
+	var visible_players: Array[Dictionary] = []
+	if _can_see_player():
+		visible_players.append({
+			"position": _vector_to_array(target_player.global_position),
+			"distance": global_position.distance_to(target_player.global_position)
+		})
+	var noises: Array[Dictionary] = []
+	for event in heard_noise_events:
+		noises.append({
+			"position": _vector_to_array(event.position),
+			"intensity": event.intensity,
+			"age_seconds": event.age_seconds
+		})
+	return {
+		"uncle_state": State.keys()[state].to_lower(),
+		"uncle_position": _vector_to_array(global_position),
+		"visible_players": visible_players,
+		"heard_noises": noises,
+		"last_seen_player": {
+			"position": _vector_to_array(last_seen_position),
+			"time_seconds_ago": last_seen_age
+		},
+		"recent_rooms": [_area_name_for_position(global_position), _area_name_for_position(target_player.global_position)],
+		"difficulty": difficulty_name,
+		"captured_recently": capture_cooldown > 0.0,
+		"escape_count": 0
+	}
+
+func _on_ai_request_completed(result: int, response_code: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	ai_request_pending = false
+	if result != HTTPRequest.RESULT_SUCCESS or response_code < 200 or response_code >= 300:
+		ai_retry_cooldown = 4.0
+		return
+	var parsed = JSON.parse_string(body.get_string_from_utf8())
+	if typeof(parsed) != TYPE_DICTIONARY:
+		return
+	_apply_ai_decision(parsed)
+
+func _apply_ai_decision(decision: Dictionary) -> void:
+	if state == State.CHASE:
+		return
+	var action := String(decision.get("action", "PATROL_AREA"))
+	var target_area := String(decision.get("target_area", "main_hall"))
+	var urgency := clampf(float(decision.get("urgency", 0.5)), 0.0, 1.0)
+	var target := _area_to_position(target_area)
+	match action:
+		"INVESTIGATE_AREA", "SEARCH_POSITION":
+			investigation_point = target
+			state = State.SUSPICIOUS if urgency < 0.78 else State.INVESTIGATE
+			_set_navigation_destination(investigation_point, true)
+		"GUARD_AREA":
+			guard_at(target, 1.6 + urgency * 3.0)
+		"RETURN_TO_PATROL":
+			state = State.RETURN_TO_PATROL
+		"PATROL_AREA":
+			if urgency > 0.5:
+				investigation_point = target
+				state = State.INVESTIGATE
+				_set_navigation_destination(investigation_point, true)
+		"CHASE_TARGET":
+			if _can_see_player():
+				state = State.CHASE
+
+func _area_to_position(area_name: String) -> Vector3:
+	match area_name.strip_edges().to_lower():
+		"kitchen":
+			return Vector3(-11.0, 0.9, -6.0)
+		"study":
+			return Vector3(11.0, 0.9, -5.0)
+		"living_room":
+			return Vector3(-2.0, 0.9, 5.2)
+		"front_yard":
+			return Vector3(0.0, 0.9, 24.0)
+		"upstairs", "upstairs_bedroom":
+			return Vector3(0.0, 4.9, -2.0)
+		"attic":
+			return Vector3(0.0, 8.9, 0.0)
+		"garage":
+			return Vector3(-10.0, 0.9, 4.4)
+		_:
+			return Vector3(0.0, 0.9, -5.8)
+
+func _area_name_for_position(position: Vector3) -> String:
+	if position.y > 7.0:
+		return "attic"
+	if position.y > 3.0:
+		return "upstairs"
+	if position.z > 12.0:
+		return "front_yard"
+	if position.x < -5.0 and position.z < 0.0:
+		return "kitchen"
+	if position.x > 5.0 and position.z < 0.0:
+		return "study"
+	if position.x < -5.0 and position.z > 1.0:
+		return "garage"
+	if position.z > 3.0:
+		return "living_room"
+	return "main_hall"
+
+func _age_noise_events(delta: float) -> void:
+	for event in heard_noise_events:
+		event.age_seconds = float(event.get("age_seconds", 0.0)) + delta
+	heard_noise_events = heard_noise_events.filter(func(event: Dictionary) -> bool:
+		return float(event.get("age_seconds", 0.0)) < 10.0
+	)
+
+func _vector_to_array(value: Vector3) -> Array[float]:
+	return [value.x, value.y, value.z]
 
 func _remember_suspicion(world_position: Vector3, intensity: float) -> void:
 	var bucket := "%d:%d" % [roundi(world_position.x / 6.0), roundi(world_position.z / 6.0)]

@@ -60,9 +60,49 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "${{ steps.release.outputs.tag }}"
-          gh release view $tag *> $null
+          $repo = "${{ github.repository }}"
+          gh api "repos/$repo/releases/tags/$tag" *> $null
           if ($LASTEXITCODE -ne 0) {
-            gh release create $tag --title "Tiny Paws $tag" --notes "Windows x64 playable build for Tiny Paws."
+            $release = gh api --method POST "repos/$repo/releases" `
+              -f tag_name="$tag" `
+              -f target_commitish="${{ github.sha }}" `
+              -f name="Tiny Paws $tag" `
+              -f body="Windows x64 playable build for Tiny Paws." `
+              -F draft=false `
+              -F prerelease=false | ConvertFrom-Json
+          } else {
+            $release = gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
           }
-          gh release upload $tag TinyPaws-Windows-x64.zip --clobber
-          gh release edit $tag --latest
+          foreach ($asset in $release.assets) {
+            if ($asset.name -eq "TinyPaws-Windows-x64.zip") {
+              gh api --method DELETE "repos/$repo/releases/assets/$($asset.id)"
+            }
+          }
+          $uploadUrl = "https://uploads.github.com/repos/$repo/releases/$($release.id)/assets?name=TinyPaws-Windows-x64.zip"
+          Invoke-RestMethod `
+            -Method Post `
+            -Uri $uploadUrl `
+            -Headers @{
+              Authorization = "Bearer $env:GH_TOKEN"
+              Accept = "application/vnd.github+json"
+              "X-GitHub-Api-Version" = "2022-11-28"
+            } `
+            -ContentType "application/zip" `
+            -InFile "TinyPaws-Windows-x64.zip"
+          gh api --method PATCH "repos/$repo/releases/$($release.id)" -F make_latest=true
+
+      - name: Verify release asset
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ steps.release.outputs.tag }}"
+          $repo = "${{ github.repository }}"
+          $release = gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
+          $asset = $release.assets | Where-Object { $_.name -eq "TinyPaws-Windows-x64.zip" } | Select-Object -First 1
+          if (-not $asset) {
+            throw "TinyPaws-Windows-x64.zip was not attached to release $tag"
+          }
+          if ($asset.size -lt 1000000) {
+            throw "Release asset is unexpectedly small: $($asset.size)"
+          }

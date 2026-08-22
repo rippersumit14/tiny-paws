@@ -55,41 +55,16 @@ jobs:
           Compress-Archive -Path builds\windows\* -DestinationPath TinyPaws-Windows-x64.zip -Force
 
       - name: Publish GitHub release
-        shell: pwsh
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          $tag = "${{ steps.release.outputs.tag }}"
-          $repo = "${{ github.repository }}"
-          gh api "repos/$repo/releases/tags/$tag" *> $null
-          if ($LASTEXITCODE -ne 0) {
-            $release = gh api --method POST "repos/$repo/releases" `
-              -f tag_name="$tag" `
-              -f target_commitish="${{ github.sha }}" `
-              -f name="Tiny Paws $tag" `
-              -f body="Windows x64 playable build for Tiny Paws." `
-              -F draft=false `
-              -F prerelease=false | ConvertFrom-Json
-          } else {
-            $release = gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
-          }
-          foreach ($asset in $release.assets) {
-            if ($asset.name -eq "TinyPaws-Windows-x64.zip") {
-              gh api --method DELETE "repos/$repo/releases/assets/$($asset.id)"
-            }
-          }
-          $uploadUrl = "https://uploads.github.com/repos/$repo/releases/$($release.id)/assets?name=TinyPaws-Windows-x64.zip"
-          Invoke-RestMethod `
-            -Method Post `
-            -Uri $uploadUrl `
-            -Headers @{
-              Authorization = "Bearer $env:GH_TOKEN"
-              Accept = "application/vnd.github+json"
-              "X-GitHub-Api-Version" = "2022-11-28"
-            } `
-            -ContentType "application/zip" `
-            -InFile "TinyPaws-Windows-x64.zip"
-          gh api --method PATCH "repos/$repo/releases/$($release.id)" -F make_latest=true
+        uses: ncipollo/release-action@v1
+        with:
+          tag: ${{ steps.release.outputs.tag }}
+          name: Tiny Paws ${{ steps.release.outputs.tag }}
+          body: Windows x64 playable build for Tiny Paws.
+          artifacts: TinyPaws-Windows-x64.zip
+          allowUpdates: true
+          replacesArtifacts: true
+          makeLatest: true
+          token: ${{ github.token }}
 
       - name: Verify release asset
         shell: pwsh

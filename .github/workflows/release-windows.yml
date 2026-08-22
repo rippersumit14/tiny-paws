@@ -53,6 +53,7 @@ jobs:
         shell: pwsh
         run: |
           Compress-Archive -Path builds\windows\* -DestinationPath TinyPaws-Windows-x64.zip -Force
+          Get-Item TinyPaws-Windows-x64.zip | Format-List FullName,Length
 
       - name: Publish GitHub release
         uses: ncipollo/release-action@v1
@@ -60,7 +61,8 @@ jobs:
           tag: ${{ steps.release.outputs.tag }}
           name: Tiny Paws ${{ steps.release.outputs.tag }}
           body: Windows x64 playable build for Tiny Paws.
-          artifacts: TinyPaws-Windows-x64.zip
+          artifacts: ./TinyPaws-Windows-x64.zip
+          artifactErrorsFailBuild: true
           allowUpdates: true
           replacesArtifacts: true
           makeLatest: true
@@ -73,8 +75,15 @@ jobs:
         run: |
           $tag = "${{ steps.release.outputs.tag }}"
           $repo = "${{ github.repository }}"
-          $release = gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
-          $asset = $release.assets | Where-Object { $_.name -eq "TinyPaws-Windows-x64.zip" } | Select-Object -First 1
+          $asset = $null
+          for ($i = 0; $i -lt 12; $i++) {
+            $release = gh api "repos/$repo/releases/tags/$tag" | ConvertFrom-Json
+            $asset = $release.assets | Where-Object { $_.name -eq "TinyPaws-Windows-x64.zip" } | Select-Object -First 1
+            if ($asset) {
+              break
+            }
+            Start-Sleep -Seconds 5
+          }
           if (-not $asset) {
             throw "TinyPaws-Windows-x64.zip was not attached to release $tag"
           }

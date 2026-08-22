@@ -176,7 +176,7 @@ function App() {
           <h2>Download Tiny Paws</h2>
           <p>Download the packaged Windows x64 build. Extract the ZIP, then launch TinyPaws.exe.</p>
           <div className="release-meta">
-            <span>Version v0.1.3</span>
+            <span>Version v0.1.4</span>
             <span>Windows 10 / 11</span>
             <span>x64 ZIP, approx. 38 MB</span>
           </div>

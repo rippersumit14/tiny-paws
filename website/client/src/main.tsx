@@ -14,9 +14,7 @@ import {
 } from "lucide-react";
 import "./styles.css";
 
-const releaseUrl = "https://github.com/rippersumit14/tiny-paws/releases/latest";
-const windowsDownloadUrl =
-  "https://github.com/rippersumit14/tiny-paws/releases/latest/download/TinyPaws-Windows-x64.zip";
+const releaseUrl = "https://github.com/rippersumit14/tiny-paws/releases";
 const repoUrl = "https://github.com/rippersumit14/tiny-paws";
 
 const features = [
@@ -174,16 +172,16 @@ function App() {
         <div>
           <p className="eyebrow">Download</p>
           <h2>Download Tiny Paws</h2>
-          <p>Download the packaged Windows x64 build. Extract the ZIP, then launch TinyPaws.exe.</p>
+          <p>Windows builds are packaged as TinyPaws-Windows-x64.zip. Extract the ZIP, then launch TinyPaws.exe.</p>
           <div className="release-meta">
             <span>Version v0.1.6</span>
             <span>Windows 10 / 11</span>
             <span>x64 ZIP, approx. 38 MB</span>
           </div>
         </div>
-        <a className="primary" href={windowsDownloadUrl}>
+        <a className="primary" href={releaseUrl}>
           <Download size={20} />
-          Download For Windows
+          Open Releases
         </a>
       </section>
 

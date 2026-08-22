@@ -55,10 +55,14 @@ jobs:
           Compress-Archive -Path builds\windows\* -DestinationPath TinyPaws-Windows-x64.zip -Force
 
       - name: Publish GitHub release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.release.outputs.tag }}
-          name: Tiny Paws ${{ steps.release.outputs.tag }}
-          files: TinyPaws-Windows-x64.zip
-          make_latest: true
-          generate_release_notes: true
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "${{ steps.release.outputs.tag }}"
+          gh release view $tag *> $null
+          if ($LASTEXITCODE -ne 0) {
+            gh release create $tag --title "Tiny Paws $tag" --notes "Windows x64 playable build for Tiny Paws."
+          }
+          gh release upload $tag TinyPaws-Windows-x64.zip --clobber
+          gh release edit $tag --latest

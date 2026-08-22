@@ -14,7 +14,9 @@ import {
 } from "lucide-react";
 import "./styles.css";
 
-const releaseUrl = "https://github.com/rippersumit14/tiny-paws/releases";
+const releaseUrl = "https://github.com/rippersumit14/tiny-paws/releases/latest";
+const windowsDownloadUrl =
+  "https://github.com/rippersumit14/tiny-paws/releases/latest/download/TinyPaws-Windows-x64.zip";
 const repoUrl = "https://github.com/rippersumit14/tiny-paws";
 
 const features = [
@@ -172,16 +174,16 @@ function App() {
         <div>
           <p className="eyebrow">Download</p>
           <h2>Download Tiny Paws</h2>
-          <p>Windows builds will be attached to GitHub Releases as TinyPaws-Windows-x64.zip.</p>
+          <p>Download the packaged Windows x64 build. Extract the ZIP, then launch TinyPaws.exe.</p>
           <div className="release-meta">
-            <span>Version 0.1.0</span>
+            <span>Version v0.1.0</span>
             <span>Windows 10 / 11</span>
-            <span>Release artifact pending first packaged build</span>
+            <span>x64 ZIP, approx. 38 MB</span>
           </div>
         </div>
-        <a className="primary" href={releaseUrl}>
+        <a className="primary" href={windowsDownloadUrl}>
           <Download size={20} />
-          Open Releases
+          Download For Windows
         </a>
       </section>
 
@@ -191,8 +193,8 @@ function App() {
           <h2>Next Milestones</h2>
         </div>
         <ol>
-          <li>Package the first Windows export and attach it to a GitHub release.</li>
-          <li>Move core gameplay state into native C++/GDExtension modules.</li>
+          <li>Promote the Windows build through GitHub Releases.</li>
+          <li>Continue replacing procedural placeholder models with authored stylized production assets.</li>
           <li>Replace procedural placeholder models with authored stylized production assets.</li>
           <li>Implement Player Uncle mode, customization, inventory syncing, and edge-case handling.</li>
         </ol>

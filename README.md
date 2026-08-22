@@ -18,10 +18,10 @@ https://tiny-paws.onrender.com
 
 ## About
 
-The project now has two products:
+The project currently has two products:
 
 - Windows game: Godot 4.7, staged native C++/GDExtension gameplay foundation, downloadable Windows export, and authoritative multiplayer.
-- Website: React frontend, Express backend stub, and GitHub Pages deployment for information, screenshots, roadmap, GitHub links, and Windows downloads.
+- Website: React frontend, Express backend stub, and GitHub Pages deployment for information, screenshots, roadmap, GitHub links, and Windows release downloads.
 
 ## Gameplay
 
@@ -139,7 +139,11 @@ The deployment split is:
 - Render runs the Node.js realtime server with WebSocket support.
 - The Windows Game Build workflow exports `TinyPaws.exe` and uploads `TinyPaws-Windows-x64.zip` as a build artifact.
 
-GitHub Releases will be used for public Windows ZIP downloads once the first packaged build is promoted.
+GitHub Releases are used for public Windows ZIP downloads. The website CTA targets:
+
+```text
+https://github.com/rippersumit14/tiny-paws/releases/latest/download/TinyPaws-Windows-x64.zip
+```
 
 ## Screenshots
 
@@ -149,7 +153,6 @@ Screenshots will be added under `docs/images/` after the playable scene has stab
 
 - Replace procedural placeholder models with authored production-quality dog, Uncle, manor, and town assets.
 - Compile and activate the staged native C++/GDExtension gameplay module.
-- Package the first Windows release ZIP and attach it to GitHub Releases.
 - Expand AI Uncle and implement Player Uncle gameplay.
 - Synchronize inventory, keys, doors, captures, rescues, escapes, and match results.
 - Add settings, graphics presets, audio, chase polish, and edge-case recovery.

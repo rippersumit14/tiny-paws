@@ -1,0 +1,64 @@
+name: Release Windows Build
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag, for example v0.1.0"
+        required: true
+        default: "v0.1.0"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        id: release
+        shell: pwsh
+        run: |
+          if ("${{ github.event_name }}" -eq "workflow_dispatch") {
+            "tag=${{ github.event.inputs.version }}" >> $env:GITHUB_OUTPUT
+          } else {
+            "tag=${{ github.ref_name }}" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Install Godot and export templates
+        shell: pwsh
+        run: |
+          $GodotVersion = "4.7.2"
+          $GodotTag = "4.7.2-stable"
+          Invoke-WebRequest "https://github.com/godotengine/godot/releases/download/$GodotTag/Godot_v$($GodotTag)_win64.exe.zip" -OutFile godot.zip
+          Expand-Archive godot.zip -DestinationPath godot
+          Invoke-WebRequest "https://github.com/godotengine/godot/releases/download/$GodotTag/Godot_v$($GodotTag)_export_templates.tpz" -OutFile templates.tpz
+          New-Item -ItemType Directory -Force "$env:APPDATA\Godot\export_templates\$GodotVersion.stable" | Out-Null
+          Copy-Item templates.tpz templates.zip
+          Expand-Archive templates.zip -DestinationPath templates
+          Copy-Item templates\templates\* "$env:APPDATA\Godot\export_templates\$GodotVersion.stable" -Recurse -Force
+
+      - name: Export Windows game
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force builds\windows | Out-Null
+          .\godot\Godot_v4.7.2-stable_win64.exe --headless --path game --export-release "Windows Desktop" ..\builds\windows\TinyPaws.exe
+
+      - name: Package Windows ZIP
+        shell: pwsh
+        run: |
+          Compress-Archive -Path builds\windows\* -DestinationPath TinyPaws-Windows-x64.zip -Force
+
+      - name: Publish GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.release.outputs.tag }}
+          name: Tiny Paws ${{ steps.release.outputs.tag }}
+          files: TinyPaws-Windows-x64.zip
+          make_latest: true
+          generate_release_notes: true

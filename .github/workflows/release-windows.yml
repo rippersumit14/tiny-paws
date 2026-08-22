@@ -53,9 +53,7 @@ jobs:
       - name: Package Windows ZIP
         shell: pwsh
         run: |
-          Get-ChildItem builds\windows | Format-Table Name,Length
           Compress-Archive -Path builds\windows\* -DestinationPath TinyPaws-Windows-x64.zip -Force
-          Get-Item TinyPaws-Windows-x64.zip | Format-List FullName,Length
 
       - name: Publish GitHub release
         uses: ncipollo/release-action@v1

@@ -47,11 +47,13 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force builds\windows | Out-Null
-          .\godot\Godot_v4.7.2-stable_win64.exe --headless --path game --export-release "Windows Desktop" ..\builds\windows\TinyPaws.exe
+          $ExportPath = Join-Path $PWD "builds\windows\TinyPaws.exe"
+          .\godot\Godot_v4.7.2-stable_win64.exe --headless --path game --export-release "Windows Desktop" $ExportPath
 
       - name: Package Windows ZIP
         shell: pwsh
         run: |
+          Get-ChildItem builds\windows | Format-Table Name,Length
           Compress-Archive -Path builds\windows\* -DestinationPath TinyPaws-Windows-x64.zip -Force
           Get-Item TinyPaws-Windows-x64.zip | Format-List FullName,Length
 
